@@ -1,0 +1,64 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "sqlite"
+  url      = env("DATABASE_URL")
+}
+
+model User {
+  id            String   @id @default(cuid())
+  email         String   @unique
+  name          String?
+  avatar        String?
+  phone         String?
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+  createdProjects Project[]
+  donations     Donation[]
+}
+
+model Category {
+  id          String @id @default(cuid())
+  name        String @unique
+  description String?
+  icon        String?
+  projects    Project[]
+}
+
+model Project {
+  id          String   @id @default(cuid())
+  title       String
+  description String
+  content     String
+  targetAmount Float
+  currentAmount Float  @default(0)
+  startDate   DateTime @default(now())
+  endDate     DateTime
+  status      String   @default("pending")
+  images      String?
+  location    String?
+  organizer   String?
+  contact     String?
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+  creatorId   String
+  creator     User     @relation(fields: [creatorId], references: [id])
+  categoryId  String?
+  category    Category? @relation(fields: [categoryId], references: [id])
+  donations   Donation[]
+  donorCount  Int      @default(0)
+}
+
+model Donation {
+  id        String   @id @default(cuid())
+  amount    Float
+  message   String?
+  anonymous Boolean  @default(false)
+  createdAt DateTime @default(now())
+  projectId String
+  project   Project  @relation(fields: [projectId], references: [id])
+  donorId   String
+  donor     User     @relation(fields: [donorId], references: [id])
+}
