@@ -247,7 +247,7 @@ export class PlatformCoreIntegration {
         }
       },
       'handle_project_created',
-      { fallback: { success: false, error: '处理失败' } }
+      { fallback: { success: false, projectId: null, processedAt: new Date() } }
     )
   }
 
@@ -288,7 +288,7 @@ export class PlatformCoreIntegration {
         }
       },
       'handle_donation_made',
-      { fallback: { success: false, error: '捐款处理失败' } }
+      { fallback: { success: false, donationId: null, processedAt: new Date() } }
     )
   }
 

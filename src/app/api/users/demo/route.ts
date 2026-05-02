@@ -3,20 +3,17 @@ import { db } from '@/lib/db'
 
 export async function GET() {
   try {
-    // 获取第一个用户作为演示
-    const user = await db.user.findFirst({
-      include: {
-        communityAccounts: {
-          orderBy: { createdAt: 'desc' }
-        }
-      }
-    })
+    // 获取第一个用户作为演示，如果没有则创建
+    let user = await db.user.findFirst()
 
     if (!user) {
-      return NextResponse.json(
-        { error: 'No users found' },
-        { status: 404 }
-      )
+      user = await db.user.create({
+        data: {
+          email: 'demo@yuanju.org',
+          name: '演示用户',
+          phone: '13800138000'
+        }
+      })
     }
 
     return NextResponse.json(user)

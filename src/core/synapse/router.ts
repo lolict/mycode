@@ -208,11 +208,14 @@ export class SynapseRouter {
         id: this.generateSignalId(),
         target,
         metadata: {
-          ...signal.metadata,
+          priority: signal.metadata.priority,
+          timestamp: signal.metadata.timestamp,
+          ttl: signal.metadata.ttl,
+          correlationId: signal.metadata.correlationId,
           routed: true,
           originalTarget: signal.target,
           routingTimestamp: new Date()
-        }
+        } as any
       }
 
       // 这里应该通过突触系统发送信号

@@ -20,7 +20,7 @@ import {
   Users, 
   Clock, 
   Shield, 
-  ShakeHand,
+  Handshake,
   PlusCircle,
   CheckCircle,
   AlertCircle
@@ -46,7 +46,7 @@ const LEDGER_TYPES = [
   { value: 'volunteer', label: '记名雷锋', icon: Users, description: '雷锋账本 - 记录志愿服务' },
   { value: 'time', label: '记名时间', icon: Clock, description: '时间账本 - 记录时间贡献' },
   { value: 'deposit', label: '记名押金', icon: Shield, description: '押金账本 - 记录押金贡献' },
-  { value: 'cooperation', label: '记名合作', icon: ShakeHand, description: '合作账本 - 记录合作贡献' }
+  { value: 'cooperation', label: '记名合作', icon: Handshake, description: '合作账本 - 记录合作贡献' }
 ]
 
 export default function LedgerPage() {

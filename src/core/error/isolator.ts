@@ -26,7 +26,7 @@ export class ErrorIsolator {
     this.stats = {
       totalIsolations: 0,
       activeZones: 0,
-      containedErrors: number
+      containedErrors: 0
     }
     this.zones = new Map()
     this.maxZones = 50
@@ -102,17 +102,15 @@ export class ErrorIsolator {
    * 创建隔离的执行上下文
    */
   private createIsolatedContext<T>(zone: IsolationZone<T>) {
+    const self = this
     return {
       async execute<R>(fn: () => Promise<R> | R): Promise<R> {
-        // 使用Proxy创建隔离环境
-        const isolatedGlobal = this.createIsolatedGlobal(zone)
+        const isolatedGlobal = self.createIsolatedGlobal(zone)
         
         try {
-          // 在隔离的全局环境中执行
-          return await this.runInIsolatedEnvironment(fn, isolatedGlobal)
+          return await self.runInIsolatedEnvironment(fn, isolatedGlobal)
         } finally {
-          // 清理隔离环境
-          this.cleanupIsolatedEnvironment(isolatedGlobal)
+          self.cleanupIsolatedEnvironment(isolatedGlobal)
         }
       }
     }

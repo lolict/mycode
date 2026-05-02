@@ -12,7 +12,7 @@ export class SynapseContainer {
   private static instance: SynapseContainer
   private boundary: SynapseBoundary
   private transmitter: SynapseTransmitter
-  private receiver: SynapseReceiver
+  public receiver: SynapseReceiver
   private router: SynapseRouter
 
   private constructor() {

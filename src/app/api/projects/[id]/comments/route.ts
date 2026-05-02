@@ -3,11 +3,12 @@ import { db } from '@/lib/db'
 
 export async function GET(
   request: NextRequest,
-  { params }: { params: { id: string } }
+  { params }: { params: Promise<{ id: string }> }
 ) {
   try {
+    const { id } = await params
     const comments = await db.comment.findMany({
-      where: { projectId: params.id },
+      where: { projectId: id },
       include: {
         author: {
           select: {
@@ -33,9 +34,10 @@ export async function GET(
 
 export async function POST(
   request: NextRequest,
-  { params }: { params: { id: string } }
+  { params }: { params: Promise<{ id: string }> }
 ) {
   try {
+    const { id } = await params
     const body = await request.json()
     const { content, authorId } = body
 
@@ -48,7 +50,7 @@ export async function POST(
 
     // 检查项目是否存在
     const project = await db.project.findUnique({
-      where: { id: params.id }
+      where: { id }
     })
 
     if (!project) {
@@ -86,7 +88,7 @@ export async function POST(
     const comment = await db.comment.create({
       data: {
         content,
-        projectId: params.id,
+        projectId: id,
         authorId: finalAuthorId
       },
       include: {

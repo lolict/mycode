@@ -3,11 +3,12 @@ import { db } from '@/lib/db'
 
 export async function GET(
   request: NextRequest,
-  { params }: { params: { id: string } }
+  { params }: { params: Promise<{ id: string }> }
 ) {
   try {
+    const { id } = await params
     const donations = await db.donation.findMany({
-      where: { projectId: params.id },
+      where: { projectId: id },
       include: {
         donor: {
           select: {

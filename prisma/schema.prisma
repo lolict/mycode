@@ -17,6 +17,12 @@ model User {
   updatedAt     DateTime @updatedAt
   createdProjects Project[]
   donations     Donation[]
+  moralRecords  MoralRecord[]
+  moralLedger   MoralLedger?
+  valueContributions ValueContribution[]
+  organizationMemberships OrganizationMember[]
+  comments      Comment[]
+  namedLedgers  NamedLedger[]
 }
 
 model Category {
@@ -49,6 +55,8 @@ model Project {
   category    Category? @relation(fields: [categoryId], references: [id])
   donations   Donation[]
   donorCount  Int      @default(0)
+  comments    Comment[]
+  documents   ProjectDocument[]
 }
 
 model Donation {
@@ -61,4 +69,176 @@ model Donation {
   project   Project  @relation(fields: [projectId], references: [id])
   donorId   String
   donor     User     @relation(fields: [donorId], references: [id])
+}
+
+model Comment {
+  id        String   @id @default(cuid())
+  content   String
+  createdAt DateTime @default(now())
+  projectId String
+  project   Project  @relation(fields: [projectId], references: [id])
+  authorId  String
+  author    User     @relation(fields: [authorId], references: [id])
+}
+
+model ProjectDocument {
+  id        String   @id @default(cuid())
+  docType   String
+  content   String?
+  isPublic  Boolean  @default(false)
+  createdAt DateTime @default(now())
+  projectId String
+  project   Project  @relation(fields: [projectId], references: [id])
+}
+
+/// 记名账本 - 各类贡献记录
+model NamedLedger {
+  id            String   @id @default(cuid())
+  userId        String
+  user          User     @relation(fields: [userId], references: [id])
+  ledgerType    String   // technology, technique, public_tool, intelligence, energy, charity, donation, volunteer, time, deposit, cooperation
+  content       String
+  value         Float    @default(0)
+  status        String   @default("pending") // pending, verified, applied
+  createdAt     DateTime @default(now())
+}
+
+// ==================== 道德账本系统 ====================
+
+/// 道德记录 - 记录每一次道德行为，需要集体验证
+model MoralRecord {
+  id            String   @id @default(cuid())
+  userId        String
+  user          User     @relation(fields: [userId], references: [id])
+
+  // 记录类型
+  recordType    String   // kindness(善良), compassion(恻隐), justice(正义), dedication(奉献), severity(严重)
+
+  // 五维评分 (0-100)
+  kindnessScore     Int  @default(0)  // 善良维度 - 权重30%
+  compassionScore   Int  @default(0)  // 恻隐维度 - 权重25%
+  justiceScore      Int  @default(0)  // 正义维度 - 权重20%
+  dedicationScore   Int  @default(0)  // 奉献维度 - 权重15%
+  severityScore     Int  @default(0)  // 严重维度 - 权重10%
+
+  // 综合评分（加权计算）
+  compositeScore Float @default(0)
+
+  // 行为描述
+  description   String
+  evidenceUrls  String?  // JSON数组，证据URL（照片/视频）
+
+  // 集体验证机制
+  verificationCount Int @default(0)   // 已验证人数
+  verificationRequired Int @default(3) // 需要的验证人数（至少3人）
+  isVerified    Boolean  @default(false)
+
+  // 验证者列表（JSON数组，存储验证者userId）
+  verifiers     String?  // JSON
+
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+}
+
+/// 道德账本 - 汇总每个用户的道德评分
+model MoralLedger {
+  id            String   @id @default(cuid())
+  userId        String   @unique
+  user          User     @relation(fields: [userId], references: [id])
+
+  // 五维总分
+  totalKindness     Float @default(0)   // 善良总分
+  totalCompassion   Float @default(0)   // 恻隐总分
+  totalJustice      Float @default(0)   // 正义总分
+  totalDedication   Float @default(0)   // 奉献总分
+  totalSeverity     Float @default(0)   // 严重总分
+
+  // 综合评分
+  compositeScore Float @default(0)
+
+  // 等级
+  level         String   @default("初心者")  // 初心者/行者/愿者/守护者/圆觉者
+
+  // 已验证记录数
+  verifiedRecordCount Int @default(0)
+  totalRecordCount    Int @default(0)
+
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+}
+
+/// 组织单元 - 命运共同体的基本架构
+/// 最小单元: 1残疾人 + 6健全人 = 7人 (组)
+/// 扩展单元: 6+36+6 = 48人 (班)
+model OrganizationUnit {
+  id            String   @id @default(cuid())
+  name          String
+  unitType      String   // group(组7人), squad(班48人), battalion(营)
+
+  // 上级单元
+  parentUnitId  String?
+  parentUnit    OrganizationUnit? @relation("OrgHierarchy", fields: [parentUnitId], references: [id])
+  childUnits    OrganizationUnit[] @relation("OrgHierarchy")
+
+  // 残疾人优先级 - 残疾程度越严重，优先级越高
+  disabilityPriorityScore Float @default(0)
+
+  // 单元描述
+  description   String?
+
+  // 状态
+  status        String   @default("forming") // forming(组建中), active(活跃), dissolved(解散)
+
+  members       OrganizationMember[]
+
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+}
+
+/// 组织成员
+model OrganizationMember {
+  id            String   @id @default(cuid())
+  userId        String
+  user          User     @relation(fields: [userId], references: [id])
+  organizationUnitId String
+  organizationUnit   OrganizationUnit @relation(fields: [organizationUnitId], references: [id])
+
+  // 成员角色
+  role          String   @default("member") // disabled(残疾人), able(健全人), leader(组长), deputy(副组长)
+
+  // 残疾信息
+  isDisabled    Boolean  @default(false)
+  disabilityType String?  // 肢体/视力/听力/智力/精神/多重
+  disabilityLevel String? // 一级(最重)/二级/三级/四级(最轻)
+
+  // 加入时间
+  joinedAt      DateTime @default(now())
+}
+
+/// 八维价值贡献
+model ValueContribution {
+  id            String   @id @default(cuid())
+  userId        String
+  user          User     @relation(fields: [userId], references: [id])
+
+  // 八维价值维度
+  dimension     String   // moral(道德行为), intelligence(智力组合), labor(劳动奉献),
+                         // land(土地共产), energy(能源共产), duty(义务消供),
+                         // innovation(创新赋能), copyright(版权混元)
+
+  // 贡献值
+  value         Float    @default(0)
+
+  // 贡献描述
+  description   String
+
+  // 证据
+  evidenceUrls  String?  // JSON数组
+
+  // 验证状态
+  isVerified    Boolean  @default(false)
+  verifiedBy    String?  // 验证者userId
+
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
 }

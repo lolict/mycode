@@ -3,11 +3,12 @@ import { db } from '@/lib/db'
 
 export async function GET(
   request: NextRequest,
-  { params }: { params: { id: string } }
+  { params }: { params: Promise<{ id: string }> }
 ) {
   try {
+    const { id } = await params
     const project = await db.project.findUnique({
-      where: { id: params.id },
+      where: { id },
       include: {
         creator: {
           select: {
@@ -35,10 +36,11 @@ export async function GET(
     }
 
     // 获取捐赠者数量
-    const donorCount = await db.donation.count({
+    const donations = await db.donation.findMany({
       where: { projectId: project.id },
-      distinct: ['donorId']
+      select: { donorId: true }
     })
+    const donorCount = new Set(donations.map(d => d.donorId)).size
 
     const projectWithDonorCount = {
       ...project,

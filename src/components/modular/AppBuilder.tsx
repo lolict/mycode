@@ -9,8 +9,7 @@ import { Label } from '@/components/ui/label'
 import { Textarea } from '@/components/ui/textarea'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import { useModuleRegistry } from './ModuleRegistry'
-import { DragDropContext, Droppable, Draggable } from 'react-beautiful-dnd'
-import { Plus, Trash2, Settings, Play, Save, Eye } from 'lucide-react'
+import { Plus, Trash2, Settings, Play, Save, Eye, GripVertical, ArrowUp, ArrowDown } from 'lucide-react'
 
 interface AppTemplate {
   id: string
@@ -41,8 +40,8 @@ export function AppBuilder({ onSave, onPreview }: AppBuilderProps) {
   const [selectedCategory, setSelectedCategory] = useState('all')
 
   const availableModules = Array.from(modules.values())
-  const filteredModules = selectedCategory === 'all' 
-    ? availableModules 
+  const filteredModules = selectedCategory === 'all'
+    ? availableModules
     : availableModules.filter(module => module.category === selectedCategory)
 
   const categories = [
@@ -69,35 +68,29 @@ export function AppBuilder({ onSave, onPreview }: AppBuilderProps) {
     }))
   }
 
-  const handleDragEnd = useCallback((result: any) => {
-    if (!result.destination) return
-
-    const items = Array.from(template.modules)
-    const [reorderedItem] = items.splice(result.source.index, 1)
-    items.splice(result.destination.index, 0, reorderedItem)
-
-    setTemplate(prev => ({
-      ...prev,
-      modules: items
-    }))
-  }, [template.modules])
+  const moveModule = (index: number, direction: 'up' | 'down') => {
+    const newIndex = direction === 'up' ? index - 1 : index + 1
+    if (newIndex < 0 || newIndex >= template.modules.length) return
+    const items = [...template.modules]
+    const temp = items[index]
+    items[index] = items[newIndex]
+    items[newIndex] = temp
+    setTemplate(prev => ({ ...prev, modules: items }))
+  }
 
   const handleSave = () => {
     if (!template.name || !template.description) {
       alert('请填写应用名称和描述')
       return
     }
-
     if (template.modules.length === 0) {
       alert('请至少添加一个模块')
       return
     }
-
     const savedTemplate = {
       ...template,
       id: template.id || `app-${Date.now()}`
     }
-
     onSave?.(savedTemplate)
     alert('应用模板保存成功！')
   }
@@ -107,7 +100,6 @@ export function AppBuilder({ onSave, onPreview }: AppBuilderProps) {
       alert('请至少添加一个模块')
       return
     }
-
     onPreview?.(template)
   }
 
@@ -125,7 +117,7 @@ export function AppBuilder({ onSave, onPreview }: AppBuilderProps) {
             </div>
             <div>
               <h1 className="text-3xl font-bold">模块化应用构建器</h1>
-              <p className="text-blue-100">拖拽组装，快速构建您的专属应用</p>
+              <p className="text-blue-100">选择组装，快速构建您的专属应用</p>
             </div>
           </div>
         </div>
@@ -133,7 +125,6 @@ export function AppBuilder({ onSave, onPreview }: AppBuilderProps) {
 
       <div className="container mx-auto px-4 py-8">
         <div className="grid lg:grid-cols-3 gap-8">
-          {/* 左侧：应用配置 */}
           <div className="space-y-6">
             <Card>
               <CardHeader>
@@ -150,7 +141,6 @@ export function AppBuilder({ onSave, onPreview }: AppBuilderProps) {
                     placeholder="输入应用名称"
                   />
                 </div>
-                
                 <div>
                   <Label htmlFor="appDescription">应用描述 *</Label>
                   <Textarea
@@ -161,7 +151,6 @@ export function AppBuilder({ onSave, onPreview }: AppBuilderProps) {
                     rows={3}
                   />
                 </div>
-                
                 <div>
                   <Label htmlFor="layout">布局模式</Label>
                   <Select value={template.layout} onValueChange={(value: any) => setTemplate(prev => ({ ...prev, layout: value }))}>
@@ -175,7 +164,6 @@ export function AppBuilder({ onSave, onPreview }: AppBuilderProps) {
                     </SelectContent>
                   </Select>
                 </div>
-
                 <div className="flex gap-2">
                   <Button onClick={handleSave} className="flex-1">
                     <Save className="h-4 w-4 mr-2" />
@@ -210,7 +198,6 @@ export function AppBuilder({ onSave, onPreview }: AppBuilderProps) {
             </Card>
           </div>
 
-          {/* 中间：可用模块 */}
           <div className="space-y-6">
             <Card>
               <CardHeader>
@@ -226,12 +213,8 @@ export function AppBuilder({ onSave, onPreview }: AppBuilderProps) {
                           <div className="font-medium">{module.name}</div>
                           <div className="text-sm text-gray-600">{module.description}</div>
                           <div className="flex items-center gap-2 mt-1">
-                            <Badge variant="outline" className="text-xs">
-                              {module.category}
-                            </Badge>
-                            <Badge variant="secondary" className="text-xs">
-                              v{module.version}
-                            </Badge>
+                            <Badge variant="outline" className="text-xs">{module.category}</Badge>
+                            <Badge variant="secondary" className="text-xs">v{module.version}</Badge>
                           </div>
                         </div>
                         <Button
@@ -244,17 +227,21 @@ export function AppBuilder({ onSave, onPreview }: AppBuilderProps) {
                       </div>
                     </div>
                   ))}
+                  {filteredModules.length === 0 && (
+                    <div className="text-center py-8 text-gray-500">
+                      <p>该分类暂无可用模块</p>
+                    </div>
+                  )}
                 </div>
               </CardContent>
             </Card>
           </div>
 
-          {/* 右侧：已选模块 */}
           <div className="space-y-6">
             <Card>
               <CardHeader>
                 <CardTitle>已选模块 ({template.modules.length})</CardTitle>
-                <CardDescription>拖拽调整模块顺序</CardDescription>
+                <CardDescription>调整模块顺序</CardDescription>
               </CardHeader>
               <CardContent>
                 {template.modules.length === 0 ? (
@@ -264,52 +251,32 @@ export function AppBuilder({ onSave, onPreview }: AppBuilderProps) {
                     <p className="text-sm">从左侧选择模块开始构建应用</p>
                   </div>
                 ) : (
-                  <DragDropContext onDragEnd={handleDragEnd}>
-                    <Droppable droppableId="modules">
-                      {(provided) => (
-                        <div
-                          {...provided.droppableProps}
-                          ref={provided.innerRef}
-                          className="space-y-2"
-                        >
-                          {template.modules.map((moduleId, index) => {
-                            const module = getModuleById(moduleId)
-                            if (!module) return null
-
-                            return (
-                              <Draggable key={moduleId} draggableId={moduleId} index={index}>
-                                {(provided, snapshot) => (
-                                  <div
-                                    ref={provided.innerRef}
-                                    {...provided.draggableProps}
-                                    {...provided.dragHandleProps}
-                                    className={`p-3 border rounded-lg bg-white ${
-                                      snapshot.isDragging ? 'shadow-lg' : ''
-                                    }`}
-                                  >
-                                    <div className="flex items-center justify-between">
-                                      <div className="flex-1">
-                                        <div className="font-medium">{module.name}</div>
-                                        <div className="text-sm text-gray-600">{module.description}</div>
-                                      </div>
-                                      <Button
-                                        size="sm"
-                                        variant="outline"
-                                        onClick={() => removeModule(moduleId)}
-                                      >
-                                        <Trash2 className="h-4 w-4" />
-                                      </Button>
-                                    </div>
-                                  </div>
-                                )}
-                              </Draggable>
-                            )
-                          })}
-                          {provided.placeholder}
+                  <div className="space-y-2">
+                    {template.modules.map((moduleId, index) => {
+                      const module = getModuleById(moduleId)
+                      if (!module) return null
+                      return (
+                        <div key={moduleId} className="p-3 border rounded-lg bg-white flex items-center gap-2">
+                          <GripVertical className="h-4 w-4 text-gray-400" />
+                          <div className="flex-1">
+                            <div className="font-medium">{module.name}</div>
+                            <div className="text-sm text-gray-600">{module.description}</div>
+                          </div>
+                          <div className="flex gap-1">
+                            <Button size="sm" variant="ghost" onClick={() => moveModule(index, 'up')} disabled={index === 0}>
+                              <ArrowUp className="h-3 w-3" />
+                            </Button>
+                            <Button size="sm" variant="ghost" onClick={() => moveModule(index, 'down')} disabled={index === template.modules.length - 1}>
+                              <ArrowDown className="h-3 w-3" />
+                            </Button>
+                            <Button size="sm" variant="outline" onClick={() => removeModule(moduleId)}>
+                              <Trash2 className="h-4 w-4" />
+                            </Button>
+                          </div>
                         </div>
-                      )}
-                    </Droppable>
-                  </DragDropContext>
+                      )
+                    })}
+                  </div>
                 )}
               </CardContent>
             </Card>

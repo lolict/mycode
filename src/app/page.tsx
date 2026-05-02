@@ -6,7 +6,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/com
 import { Badge } from '@/components/ui/badge'
 import { Alert, AlertDescription } from '@/components/ui/alert'
 import { Progress } from '@/components/ui/progress'
-import { Heart, Users, Calendar, MapPin, AlertCircle, Loader2, PlusCircle, Target, TrendingUp, UserCheck } from 'lucide-react'
+import { Heart, Users, Calendar, MapPin, AlertCircle, Loader2, PlusCircle, Target, TrendingUp, UserCheck, Shield, Building2, BookOpen } from 'lucide-react'
 
 interface Project {
   id: string
@@ -108,6 +108,33 @@ export default function SimpleStableHome() {
               <h1 className="text-2xl font-bold text-gray-900">圆聚助残平台</h1>
             </div>
             <div className="flex gap-2">
+              <Button 
+                size="sm" 
+                variant="outline"
+                className="border-amber-500 text-amber-600 hover:bg-amber-50"
+                onClick={() => window.location.href = '/moral-ledger'}
+              >
+                <Shield className="w-4 h-4 mr-2" />
+                道德账本
+              </Button>
+              <Button 
+                size="sm" 
+                variant="outline"
+                className="border-blue-500 text-blue-600 hover:bg-blue-50"
+                onClick={() => window.location.href = '/organization'}
+              >
+                <Building2 className="w-4 h-4 mr-2" />
+                命运共同体
+              </Button>
+              <Button 
+                size="sm" 
+                variant="outline"
+                className="border-purple-500 text-purple-600 hover:bg-purple-50"
+                onClick={() => window.location.href = '/ledger'}
+              >
+                <BookOpen className="w-4 h-4 mr-2" />
+                记名账本
+              </Button>
               <Button 
                 size="sm" 
                 className="bg-pink-500 hover:bg-pink-600 text-white"

@@ -3,9 +3,10 @@ import { db } from '@/lib/db'
 
 export async function POST(
   request: NextRequest,
-  { params }: { params: { id: string } }
+  { params }: { params: Promise<{ id: string }> }
 ) {
   try {
+    const { id } = await params
     const body = await request.json()
     const { amount, message, anonymous, donorId } = body
 
@@ -26,7 +27,7 @@ export async function POST(
 
     // 检查项目是否存在
     const project = await db.project.findUnique({
-      where: { id: params.id }
+      where: { id }
     })
 
     if (!project) {
@@ -57,14 +58,14 @@ export async function POST(
         amount: parseFloat(amount),
         message,
         anonymous: anonymous || false,
-        projectId: params.id,
+        projectId: id,
         donorId
       }
     })
 
     // 更新项目的当前金额
     await db.project.update({
-      where: { id: params.id },
+      where: { id },
       data: {
         currentAmount: {
           increment: parseFloat(amount)
@@ -74,12 +75,12 @@ export async function POST(
 
     // 检查是否达到目标金额
     const updatedProject = await db.project.findUnique({
-      where: { id: params.id }
+      where: { id }
     })
 
     if (updatedProject && updatedProject.currentAmount >= updatedProject.targetAmount) {
       await db.project.update({
-        where: { id: params.id },
+        where: { id },
         data: { status: 'completed' }
       })
     }

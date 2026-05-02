@@ -65,6 +65,34 @@ export default function AppsCenter() {
     const appsData: AppInfo[] = [
       // 核心应用 - 高优先级
       {
+        id: 'moral-ledger',
+        name: '道德账本',
+        description: '五维道德评分体系，集体验证机制，筛选真正行善之人',
+        icon: <Scale className="h-8 w-8" />,
+        color: 'bg-amber-500',
+        category: 'core',
+        status: 'active',
+        path: '/moral-ledger',
+        features: ['五维评分', '集体验证', '道德等级', '八维价值'],
+        priority: 0,
+        recentlyUsed: recentlyUsedApps.includes('moral-ledger'),
+        isFavorite: !!favorites['moral-ledger']
+      },
+      {
+        id: 'organization',
+        name: '命运共同体',
+        description: '1残+6健全最小单元，残健共建的命运共同体组织架构',
+        icon: <Users className="h-8 w-8" />,
+        color: 'bg-blue-500',
+        category: 'core',
+        status: 'active',
+        path: '/organization',
+        features: ['组织架构', '残健共建', '优先级', '班组管理'],
+        priority: 0,
+        recentlyUsed: recentlyUsedApps.includes('organization'),
+        isFavorite: !!favorites['organization']
+      },
+      {
         id: 'projects',
         name: '助残项目',
         description: '发起和参与助残联建项目，支持农村残疾人就业、医疗、教育',

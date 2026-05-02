@@ -22,7 +22,7 @@ export async function GET(request: NextRequest) {
       whereClause.OR = [
         {
           currentAmount: {
-            gte: db.project.fields.targetAmount * 0.5
+            gte: 0
           }
         },
         {
@@ -70,10 +70,11 @@ export async function GET(request: NextRequest) {
     // 更新donorCount字段
     const projectsWithDonorCount = await Promise.all(
       projects.map(async (project) => {
-        const donorCount = await db.donation.count({
+        const donations = await db.donation.findMany({
           where: { projectId: project.id },
-          distinct: ['donorId']
+          select: { donorId: true }
         })
+        const donorCount = new Set(donations.map(d => d.donorId)).size
         return {
           ...project,
           donorCount
@@ -123,6 +124,45 @@ export async function POST(request: NextRequest) {
         { status: 400 }
       )
     }
+
+    // ========== 道德账本门槛检查 ==========
+    // 发起人必须满足以下条件才能创建众筹项目：
+    // 1. 至少3条已验证道德记录
+    // 2. 综合评分60分以上
+    // 3. 达到"行者"等级以上
+    const moralLedger = await db.moralLedger.findUnique({
+      where: { userId: creatorId }
+    })
+
+    if (!moralLedger) {
+      return NextResponse.json(
+        { error: '您还没有道德账本，请先在道德账本中添加道德记录。需要至少3条已验证记录和60分以上综合评分才能发起项目。' },
+        { status: 403 }
+      )
+    }
+
+    if (moralLedger.verifiedRecordCount < 3) {
+      return NextResponse.json(
+        { error: `道德记录不足：您有 ${moralLedger.verifiedRecordCount} 条已验证记录，需要至少 3 条。请继续积累道德记录。` },
+        { status: 403 }
+      )
+    }
+
+    if (moralLedger.compositeScore < 60) {
+      return NextResponse.json(
+        { error: `综合评分不足：您的评分为 ${moralLedger.compositeScore.toFixed(1)} 分，需要达到 60 分以上才能发起项目。` },
+        { status: 403 }
+      )
+    }
+
+    const validLevels = ['行者', '愿者', '守护者', '圆觉者']
+    if (!validLevels.includes(moralLedger.level)) {
+      return NextResponse.json(
+        { error: `等级不足：您当前为"${moralLedger.level}"，需要达到"行者"等级以上才能发起项目。` },
+        { status: 403 }
+      )
+    }
+    // ========== 道德账本门槛检查结束 ==========
 
     const project = await db.project.create({
       data: {

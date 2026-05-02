@@ -234,9 +234,9 @@ export class RewardDistributor {
   private updateUserBalance(userId: string, amount: number): void {
     try {
       if (typeof globalThis !== 'undefined') {
-        const balances = (globalThis as any).__userBalances || {}
+        const balances: Record<string, number> = (globalThis as any).__userBalances || {}
         balances[userId] = (balances[userId] || 0) + amount
-        (globalThis as any).__userBalances = balances
+        ;(globalThis as any).__userBalances = balances
       }
     } catch {
       // 静默处理
@@ -273,13 +273,13 @@ export class RewardDistributor {
   ): void {
     try {
       if (typeof globalThis !== 'undefined') {
-        const metrics = (globalThis as any).__systemMetrics || {}
+        const metrics: Record<string, any> = (globalThis as any).__systemMetrics || {}
         metrics[systemId] = {
           totalRewards: (metrics[systemId]?.totalRewards || 0) + amount,
           lastReward: new Date(),
           performance: Math.min((metrics[systemId]?.performance || 0.5) + 0.01, 1.0)
         }
-        (globalThis as any).__systemMetrics = metrics
+        ;(globalThis as any).__systemMetrics = metrics
       }
     } catch {
       // 静默处理
@@ -325,13 +325,13 @@ export class RewardDistributor {
   ): void {
     try {
       if (typeof globalThis !== 'undefined') {
-        const health = (globalThis as any).__componentHealth || {}
+        const health: Record<string, any> = (globalThis as any).__componentHealth || {}
         health[componentId] = {
           score: Math.min((health[componentId]?.score || 0.5) + amount / 1000, 1.0),
           lastReward: new Date(),
           totalRewards: (health[componentId]?.totalRewards || 0) + amount
         }
-        (globalThis as any).__componentHealth = health
+        ;(globalThis as any).__componentHealth = health
       }
     } catch {
       // 静默处理
@@ -360,11 +360,11 @@ export class RewardDistributor {
   private updateServiceLevel(serviceId: string, amount: number): void {
     try {
       if (typeof globalThis !== 'undefined') {
-        const levels = (globalThis as any).__serviceLevels || {}
+        const levels: Record<string, number> = (globalThis as any).__serviceLevels || {}
         const currentLevel = levels[serviceId] || 1
         const newLevel = Math.min(currentLevel + Math.floor(amount / 100), 10)
         levels[serviceId] = newLevel
-        (globalThis as any).__serviceLevels = levels
+        ;(globalThis as any).__serviceLevels = levels
       }
     } catch {
       // 静默处理

@@ -369,7 +369,7 @@ export function EnhancedAppGrid({ apps, categories }: EnhancedAppGridProps) {
       <SuspenseBoundary loadingType="card" loadingCount={3}>
         <div 
           className="space-y-6"
-          onKeyDown={handleGridKeyboardNavigation}
+          onKeyDown={(e) => handleGridKeyboardNavigation(e as any)}
           role="main"
           aria-label="应用网格"
         >
