@@ -8,8 +8,70 @@ export async function GET(request: Request) {
     const status = searchParams.get('status') || 'active'
     const nodeType = searchParams.get('nodeType')
 
+    const healthCheck = searchParams.get('healthCheck') === 'true'
     const where: Record<string, unknown> = { status }
     if (nodeType) where.nodeType = nodeType
+
+    // If healthCheck=true, perform lightweight health check on all active nodes
+    if (healthCheck) {
+      const activeNodes = await prisma.nodeRegistry.findMany({
+        where: { status: 'active' },
+        include: {
+          contributor: { select: { id: true, name: true, email: true } },
+          miniApps: { select: { id: true, name: true, status: true } }
+        }
+      })
+
+      const results = await Promise.allSettled(
+        activeNodes.map(async (node) => {
+          const startTime = Date.now()
+          let isHealthy = false
+          let latency = 0
+          try {
+            const controller = new AbortController()
+            const timeoutId = setTimeout(() => controller.abort(), 3000)
+            const response = await fetch(node.endpoint, {
+              method: 'HEAD',
+              signal: controller.signal,
+              headers: node.authToken ? { 'Authorization': `Bearer ${node.authToken}` } : {}
+            })
+            clearTimeout(timeoutId)
+            latency = Date.now() - startTime
+            isHealthy = response.ok
+          } catch {
+            latency = Date.now() - startTime
+            isHealthy = false
+          }
+
+          const newTotalRequests = node.totalRequests + 1
+          const newSuccessRate = isHealthy
+            ? ((node.successRate * node.totalRequests) + 100) / newTotalRequests
+            : (node.successRate * node.totalRequests) / newTotalRequests
+          const newAvgLatency = ((node.avgLatency * node.totalRequests) + latency) / newTotalRequests
+          const newUptime = isHealthy
+            ? Math.min((node.uptime * node.totalRequests + 1) / (node.totalRequests + 1), 1)
+            : (node.uptime * node.totalRequests) / (node.totalRequests + 1)
+
+          await prisma.nodeRegistry.update({
+            where: { id: node.id },
+            data: {
+              status: isHealthy ? 'active' : 'offline',
+              lastHeartbeat: new Date(),
+              totalRequests: newTotalRequests,
+              successRate: Math.max(0, Math.min(100, newSuccessRate)),
+              avgLatency: newAvgLatency,
+              uptime: newUptime,
+            }
+          })
+
+          const { authToken, ...safeNode } = node
+          return { ...safeNode, healthCheck: { healthy: isHealthy, latency } }
+        })
+      )
+
+      const safeNodes = results.map(r => r.status === 'fulfilled' ? r.value : null).filter(Boolean)
+      return NextResponse.json({ nodes: safeNodes, total: safeNodes.length, healthChecked: true })
+    }
 
     const nodes = await prisma.nodeRegistry.findMany({
       where,
@@ -84,6 +146,41 @@ export async function POST(request: Request) {
   } catch (error) {
     console.error('注册节点失败:', error)
     return NextResponse.json({ error: '注册节点失败' }, { status: 500 })
+  }
+}
+
+// PATCH /api/nodes - Update node statistics
+export async function PATCH(request: Request) {
+  try {
+    const body = await request.json()
+    const { nodeId, successRate, avgLatency, totalRequests, uptime, status } = body
+
+    if (!nodeId) {
+      return NextResponse.json({ error: '缺少nodeId' }, { status: 400 })
+    }
+
+    const node = await prisma.nodeRegistry.findUnique({ where: { id: nodeId } })
+    if (!node) {
+      return NextResponse.json({ error: '节点不存在' }, { status: 404 })
+    }
+
+    const updateData: Record<string, unknown> = {}
+    if (successRate !== undefined) updateData.successRate = successRate
+    if (avgLatency !== undefined) updateData.avgLatency = avgLatency
+    if (totalRequests !== undefined) updateData.totalRequests = totalRequests
+    if (uptime !== undefined) updateData.uptime = uptime
+    if (status !== undefined) updateData.status = status
+
+    const updated = await prisma.nodeRegistry.update({
+      where: { id: nodeId },
+      data: updateData
+    })
+
+    const { authToken, ...safeNode } = updated
+    return NextResponse.json({ node: safeNode })
+  } catch (error) {
+    console.error('更新节点统计失败:', error)
+    return NextResponse.json({ error: '更新节点统计失败' }, { status: 500 })
   }
 }
 

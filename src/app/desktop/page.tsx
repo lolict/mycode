@@ -1,11 +1,12 @@
 'use client'
 
-import { useState, useEffect, useCallback } from 'react'
+import { useState, useEffect, useCallback, useRef } from 'react'
 import Link from 'next/link'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import { Badge } from '@/components/ui/badge'
 import { Input } from '@/components/ui/input'
+import { Label } from '@/components/ui/label'
 import { Alert, AlertDescription } from '@/components/ui/alert'
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import {
@@ -14,8 +15,10 @@ import {
   Lock, Unlock, Activity, Globe, Cpu, HardDrive,
   ChevronRight, X, Maximize2, Minimize2, RefreshCw,
   Eye, Download, Star, AlertCircle, CheckCircle2,
-  Smartphone, Code, Zap, Network
+  Smartphone, Code, Zap, Network, Loader2,
+  Package, PackageCheck, Trash2, Play
 } from 'lucide-react'
+import { usePostMessageBridge, type ChildMessageType } from '@/hooks/use-post-message'
 
 // ====== 类型定义 ======
 
@@ -37,6 +40,7 @@ interface MiniAppInfo {
   rating: number
   developerName: string | null
   geneLockId: string | null
+  isInstalled?: boolean
   preferredNode?: { id: string; name: string; status: string; endpoint: string } | null
 }
 
@@ -73,7 +77,7 @@ interface GeneLockStatus {
   }
 }
 
-// ====== 内置小程序列表（无需数据库即可展示） ======
+// ====== 内置小程序列表 ======
 
 const BUILT_IN_APPS: MiniAppInfo[] = [
   {
@@ -306,7 +310,7 @@ function GeneLockGate({ appId, appName, onVerified, onClose }: {
       } else {
         setError(data.error || '激活失败')
       }
-    } catch (err) {
+    } catch {
       setError('网络错误，请重试')
     } finally {
       setLoading(false)
@@ -447,13 +451,296 @@ function GeneLockGate({ appId, appName, onVerified, onClose }: {
   )
 }
 
-// ====== 嵌套式程序容器（iframe模式） ======
+// ====== 节点注册弹窗 ======
 
-function NestedAppContainer({ app, onClose }: {
+function NodeRegistrationModal({ onClose, onRegistered }: {
+  onClose: () => void
+  onRegistered: () => void
+}) {
+  const [form, setForm] = useState({
+    name: '',
+    description: '',
+    nodeType: 'server',
+    endpoint: '',
+    protocol: 'https',
+    authToken: '',
+    contributorName: '',
+    region: '',
+    maxConcurrent: 100,
+    capabilities: [] as string[]
+  })
+  const [loading, setLoading] = useState(false)
+  const [error, setError] = useState<string | null>(null)
+
+  const CAPABILITY_OPTIONS = [
+    { id: 'compute', label: '算力', icon: <Cpu className="h-4 w-4" /> },
+    { id: 'storage', label: '存储', icon: <HardDrive className="h-4 w-4" /> },
+    { id: 'api', label: 'API', icon: <Code className="h-4 w-4" /> },
+    { id: 'database', label: '数据库', icon: <Server className="h-4 w-4" /> },
+    { id: 'ai-model', label: 'AI模型', icon: <Cpu className="h-4 w-4" /> },
+    { id: 'video-stream', label: '视频流', icon: <Play className="h-4 w-4" /> },
+    { id: 'file-upload', label: '文件上传', icon: <Upload className="h-4 w-4" /> }
+  ]
+
+  const toggleCapability = (cap: string) => {
+    setForm(prev => ({
+      ...prev,
+      capabilities: prev.capabilities.includes(cap)
+        ? prev.capabilities.filter(c => c !== cap)
+        : [...prev.capabilities, cap]
+    }))
+  }
+
+  const handleSubmit = async () => {
+    if (!form.name || !form.endpoint) {
+      setError('请填写节点名称和端点URL')
+      return
+    }
+    setLoading(true)
+    setError(null)
+    try {
+      const res = await fetch('/api/nodes', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          ...form,
+          contributorId: 'demo-user',
+          requiresGeneLock: false // Demo mode
+        })
+      })
+      const data = await res.json()
+      if (res.ok) {
+        onRegistered()
+        onClose()
+      } else {
+        setError(data.error || '注册失败')
+      }
+    } catch {
+      setError('网络错误，请重试')
+    } finally {
+      setLoading(false)
+    }
+  }
+
+  return (
+    <div className="fixed inset-0 bg-black/60 backdrop-blur-sm z-50 flex items-center justify-center p-4">
+      <Card className="w-full max-w-lg max-h-[90vh] overflow-y-auto bg-slate-800 border-slate-700 text-white">
+        <CardHeader>
+          <div className="flex items-center justify-between">
+            <div className="flex items-center gap-2">
+              <Network className="h-6 w-6 text-blue-400" />
+              <CardTitle className="text-white">注册分布式节点</CardTitle>
+            </div>
+            <Button variant="ghost" size="sm" onClick={onClose} className="text-slate-400 hover:text-white">
+              <X className="h-4 w-4" />
+            </Button>
+          </div>
+          <CardDescription className="text-slate-400">
+            将您的服务器、API接口、算力或存储贡献给共同体网络
+          </CardDescription>
+        </CardHeader>
+        <CardContent className="space-y-4">
+          {error && (
+            <Alert variant="destructive">
+              <AlertCircle className="h-4 w-4" />
+              <AlertDescription>{error}</AlertDescription>
+            </Alert>
+          )}
+
+          <div className="space-y-2">
+            <Label className="text-slate-300">节点名称 *</Label>
+            <Input
+              value={form.name}
+              onChange={(e) => setForm(prev => ({ ...prev, name: e.target.value }))}
+              placeholder="例如：华东算力节点"
+              className="bg-slate-700 border-slate-600 text-white"
+            />
+          </div>
+
+          <div className="space-y-2">
+            <Label className="text-slate-300">节点描述</Label>
+            <Input
+              value={form.description}
+              onChange={(e) => setForm(prev => ({ ...prev, description: e.target.value }))}
+              placeholder="简要描述节点能力和用途"
+              className="bg-slate-700 border-slate-600 text-white"
+            />
+          </div>
+
+          <div className="grid grid-cols-2 gap-4">
+            <div className="space-y-2">
+              <Label className="text-slate-300">节点类型</Label>
+              <select
+                value={form.nodeType}
+                onChange={(e) => setForm(prev => ({ ...prev, nodeType: e.target.value }))}
+                className="w-full p-2 bg-slate-700 border border-slate-600 rounded-md text-white text-sm"
+              >
+                <option value="server">服务器</option>
+                <option value="api">API接口</option>
+                <option value="compute">算力</option>
+                <option value="storage">存储</option>
+              </select>
+            </div>
+            <div className="space-y-2">
+              <Label className="text-slate-300">协议</Label>
+              <select
+                value={form.protocol}
+                onChange={(e) => setForm(prev => ({ ...prev, protocol: e.target.value }))}
+                className="w-full p-2 bg-slate-700 border border-slate-600 rounded-md text-white text-sm"
+              >
+                <option value="https">HTTPS</option>
+                <option value="http">HTTP</option>
+                <option value="ws">WS</option>
+                <option value="wss">WSS</option>
+              </select>
+            </div>
+          </div>
+
+          <div className="space-y-2">
+            <Label className="text-slate-300">端点URL *</Label>
+            <Input
+              value={form.endpoint}
+              onChange={(e) => setForm(prev => ({ ...prev, endpoint: e.target.value }))}
+              placeholder="https://api.example.com"
+              className="bg-slate-700 border-slate-600 text-white"
+            />
+          </div>
+
+          <div className="space-y-2">
+            <Label className="text-slate-300">认证令牌 (可选)</Label>
+            <Input
+              value={form.authToken}
+              onChange={(e) => setForm(prev => ({ ...prev, authToken: e.target.value }))}
+              placeholder="Bearer token or API key"
+              type="password"
+              className="bg-slate-700 border-slate-600 text-white"
+            />
+          </div>
+
+          <div className="grid grid-cols-2 gap-4">
+            <div className="space-y-2">
+              <Label className="text-slate-300">贡献者名称</Label>
+              <Input
+                value={form.contributorName}
+                onChange={(e) => setForm(prev => ({ ...prev, contributorName: e.target.value }))}
+                placeholder="您的名称"
+                className="bg-slate-700 border-slate-600 text-white"
+              />
+            </div>
+            <div className="space-y-2">
+              <Label className="text-slate-300">所在地区</Label>
+              <Input
+                value={form.region}
+                onChange={(e) => setForm(prev => ({ ...prev, region: e.target.value }))}
+                placeholder="例如：华东"
+                className="bg-slate-700 border-slate-600 text-white"
+              />
+            </div>
+          </div>
+
+          <div className="space-y-2">
+            <Label className="text-slate-300">最大并发数</Label>
+            <Input
+              type="number"
+              value={form.maxConcurrent}
+              onChange={(e) => setForm(prev => ({ ...prev, maxConcurrent: parseInt(e.target.value) || 100 }))}
+              className="bg-slate-700 border-slate-600 text-white"
+            />
+          </div>
+
+          <div className="space-y-2">
+            <Label className="text-slate-300">节点能力</Label>
+            <div className="grid grid-cols-2 gap-2">
+              {CAPABILITY_OPTIONS.map(cap => (
+                <label key={cap.id} className={`flex items-center gap-2 p-2 rounded-lg border cursor-pointer transition-colors ${
+                  form.capabilities.includes(cap.id)
+                    ? 'border-blue-500 bg-blue-900/30 text-blue-300'
+                    : 'border-slate-600 text-slate-400 hover:border-slate-500'
+                }`}>
+                  <input
+                    type="checkbox"
+                    checked={form.capabilities.includes(cap.id)}
+                    onChange={() => toggleCapability(cap.id)}
+                    className="sr-only"
+                  />
+                  {cap.icon}
+                  <span className="text-sm">{cap.label}</span>
+                </label>
+              ))}
+            </div>
+          </div>
+
+          <Button
+            className="w-full bg-blue-600 hover:bg-blue-700 text-white"
+            disabled={loading || !form.name || !form.endpoint}
+            onClick={handleSubmit}
+          >
+            {loading ? <><Loader2 className="h-4 w-4 mr-2 animate-spin" />注册中...</> : '注册节点'}
+          </Button>
+        </CardContent>
+      </Card>
+    </div>
+  )
+}
+
+// Upload icon component for the capability list
+function Upload({ className }: { className?: string }) {
+  return (
+    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className={className}>
+      <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4" />
+      <polyline points="17 8 12 3 7 8" />
+      <line x1="12" x2="12" y1="3" y2="15" />
+    </svg>
+  )
+}
+
+// ====== 嵌套式程序容器（iframe模式 + PostMessage Bridge） ======
+
+function NestedAppContainer({ app, onClose, geneLockStatus, nodeInfo }: {
   app: MiniAppInfo
   onClose: () => void
+  geneLockStatus?: GeneLockStatus | null
+  nodeInfo?: { nodes: Array<{ id: string; name: string; endpoint: string; status: string }> }
 }) {
   const [isFullscreen, setIsFullscreen] = useState(false)
+  const [isLoading, setIsLoading] = useState(true)
+  const [hasError, setHasError] = useState(false)
+  const [childReady, setChildReady] = useState(false)
+  const iframeRef = useRef<HTMLIFrameElement>(null)
+
+  const { sendToChild, sendGeneLockStatus, sendUserInfo, sendNodeInfo, sendCloseApp } = usePostMessageBridge(
+    iframeRef,
+    {
+      onChildMessage: (msg: ChildMessageType) => {
+        switch (msg.type) {
+          case 'APP_READY':
+            setChildReady(true)
+            // Send initial data when child is ready
+            setTimeout(() => {
+              sendGeneLockStatus()
+              sendUserInfo()
+              sendNodeInfo()
+            }, 100)
+            break
+          case 'REQUEST_CLOSE':
+            onClose()
+            break
+          case 'REQUEST_GENE_LOCK':
+            sendGeneLockStatus()
+            break
+          case 'REQUEST_NODE_INFO':
+            sendNodeInfo()
+            break
+          case 'APP_ERROR':
+            console.error('Child app error:', msg.payload)
+            break
+        }
+      },
+      geneLockStatus: geneLockStatus ? { valid: geneLockStatus.valid, details: geneLockStatus.details } : { valid: false },
+      userInfo: { id: 'demo-user', name: '演示用户', moralScore: 60 },
+      nodeInfo: nodeInfo || { nodes: [] }
+    }
+  )
 
   const getEntryUrl = () => {
     if (app.entryType === 'iframe' && app.entryUrl) {
@@ -467,6 +754,15 @@ function NestedAppContainer({ app, onClose }: {
 
   const url = getEntryUrl()
 
+  const handleIframeLoad = () => {
+    setIsLoading(false)
+  }
+
+  const handleIframeError = () => {
+    setIsLoading(false)
+    setHasError(true)
+  }
+
   return (
     <div className={`fixed inset-0 z-40 bg-gray-900 flex flex-col ${isFullscreen ? '' : 'inset-4 rounded-xl overflow-hidden shadow-2xl'}`}>
       {/* 顶部导航栏 */}
@@ -475,7 +771,10 @@ function NestedAppContainer({ app, onClose }: {
           <span className="text-2xl">{app.icon || '📱'}</span>
           <div>
             <div className="font-semibold">{app.name}</div>
-            <div className="text-xs text-gray-400">嵌套式程序 · v{app.version}</div>
+            <div className="text-xs text-gray-400">
+              嵌套式程序 · v{app.version}
+              {childReady && <span className="ml-2 text-green-400">● 已连接</span>}
+            </div>
           </div>
           {app.requiresGeneLock && (
             <Badge className="bg-amber-600 text-white text-xs">
@@ -492,19 +791,48 @@ function NestedAppContainer({ app, onClose }: {
           <Button variant="ghost" size="sm" className="text-white hover:bg-gray-700" onClick={() => setIsFullscreen(!isFullscreen)}>
             {isFullscreen ? <Minimize2 className="h-4 w-4" /> : <Maximize2 className="h-4 w-4" />}
           </Button>
-          <Button variant="ghost" size="sm" className="text-white hover:bg-gray-700" onClick={onClose}>
+          <Button variant="ghost" size="sm" className="text-white hover:bg-gray-700" onClick={() => { sendCloseApp(); onClose(); }}>
             <X className="h-4 w-4" />
           </Button>
         </div>
       </div>
       {/* iframe容器 */}
-      <div className="flex-1">
-        {url ? (
+      <div className="flex-1 relative">
+        {isLoading && (
+          <div className="absolute inset-0 flex items-center justify-center bg-gray-900 z-10">
+            <div className="text-center">
+              <Loader2 className="h-12 w-12 animate-spin mx-auto mb-4 text-pink-500" />
+              <p className="text-gray-400">正在加载 {app.name}...</p>
+              <p className="text-xs text-gray-500 mt-2">嵌套式程序启动中</p>
+            </div>
+          </div>
+        )}
+        {hasError ? (
+          <div className="flex items-center justify-center h-full text-gray-400">
+            <div className="text-center max-w-md">
+              <AlertCircle className="h-16 w-16 mx-auto mb-4 text-red-400" />
+              <p className="text-lg mb-2">加载失败</p>
+              <p className="text-sm text-gray-500 mb-4">无法加载此嵌套式程序，请检查网络连接后重试</p>
+              <Button variant="outline" className="border-slate-600 text-slate-300" onClick={() => {
+                setHasError(false)
+                setIsLoading(true)
+                if (iframeRef.current) {
+                  iframeRef.current.src = url
+                }
+              }}>
+                <RefreshCw className="h-4 w-4 mr-2" />重新加载
+              </Button>
+            </div>
+          </div>
+        ) : url ? (
           <iframe
+            ref={iframeRef}
             src={url}
             className="w-full h-full border-0"
             title={app.name}
             sandbox="allow-same-origin allow-scripts allow-forms allow-popups"
+            onLoad={handleIframeLoad}
+            onError={handleIframeError}
           />
         ) : (
           <div className="flex items-center justify-center h-full text-gray-400">
@@ -531,21 +859,46 @@ export default function DesktopPage() {
   const [selectedCategory, setSelectedCategory] = useState('all')
   const [activeTab, setActiveTab] = useState('desktop')
   const [geneLockStatus, setGeneLockStatus] = useState<GeneLockStatus | null>(null)
+  const [showNodeRegModal, setShowNodeRegModal] = useState(false)
+  const [installedIds, setInstalledIds] = useState<string[]>([])
 
   // 加载分布式节点
+  const fetchNodes = useCallback(async () => {
+    try {
+      const res = await fetch('/api/nodes?status=active')
+      if (res.ok) {
+        const data = await res.json()
+        setNodes(data.nodes || [])
+      }
+    } catch (err) {
+      console.error('加载节点失败:', err)
+    }
+  }, [])
+
   useEffect(() => {
-    const fetchNodes = async () => {
+    fetchNodes()
+  }, [fetchNodes])
+
+  // 加载已安装的小程序
+  useEffect(() => {
+    const fetchInstalled = async () => {
       try {
-        const res = await fetch('/api/nodes?status=active')
+        const res = await fetch('/api/mini-apps?status=active&userId=demo-user')
         if (res.ok) {
           const data = await res.json()
-          setNodes(data.nodes || [])
+          setInstalledIds(data.installedIds || [])
+          // Merge DB apps with built-in apps
+          if (data.apps && data.apps.length > 0) {
+            const dbAppIds = data.apps.map((a: MiniAppInfo) => a.id)
+            const merged = [...BUILT_IN_APPS.filter(a => !dbAppIds.includes(a.id)), ...data.apps]
+            setApps(merged)
+          }
         }
       } catch (err) {
-        console.error('加载节点失败:', err)
+        console.error('加载已安装小程序失败:', err)
       }
     }
-    fetchNodes()
+    fetchInstalled()
   }, [])
 
   // 检查基因锁状态
@@ -561,8 +914,7 @@ export default function DesktopPage() {
           const data = await res.json()
           setGeneLockStatus(data)
         }
-      } catch (err) {
-        // 默认未激活
+      } catch {
         setGeneLockStatus({ valid: false, reason: '未检测到基因锁' })
       }
     }
@@ -570,7 +922,16 @@ export default function DesktopPage() {
   }, [])
 
   // 打开小程序
-  const handleOpenApp = useCallback((app: MiniAppInfo) => {
+  const handleOpenApp = useCallback(async (app: MiniAppInfo) => {
+    // Record run
+    try {
+      await fetch(`/api/mini-apps/${app.id}/run`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ userId: 'demo-user' })
+      })
+    } catch { /* ignore */ }
+
     if (app.entryType === 'route' && app.entryRoute) {
       // 内部路由直接跳转
       window.location.href = app.entryRoute
@@ -583,6 +944,33 @@ export default function DesktopPage() {
     }
     setActiveApp(app)
   }, [geneLockStatus])
+
+  // 安装/卸载小程序
+  const handleInstall = useCallback(async (appId: string) => {
+    try {
+      const res = await fetch(`/api/mini-apps/${appId}/install`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ userId: 'demo-user' })
+      })
+      if (res.ok) {
+        setInstalledIds(prev => [...prev, appId])
+        setApps(prev => prev.map(a => a.id === appId ? { ...a, installCount: a.installCount + 1 } : a))
+      }
+    } catch { /* ignore */ }
+  }, [])
+
+  const handleUninstall = useCallback(async (appId: string) => {
+    try {
+      const res = await fetch(`/api/mini-apps/${appId}/install?userId=demo-user`, {
+        method: 'DELETE'
+      })
+      if (res.ok) {
+        setInstalledIds(prev => prev.filter(id => id !== appId))
+        setApps(prev => prev.map(a => a.id === appId ? { ...a, installCount: Math.max(0, a.installCount - 1) } : a))
+      }
+    } catch { /* ignore */ }
+  }, [])
 
   // 过滤小程序
   const filteredApps = apps.filter(app => {
@@ -602,9 +990,14 @@ export default function DesktopPage() {
     { id: 'service', name: '服务', icon: <Globe className="h-4 w-4" /> }
   ]
 
+  // 节点信息用于PostMessage Bridge
+  const nodeInfoForBridge = {
+    nodes: nodes.map(n => ({ id: n.id, name: n.name, endpoint: n.endpoint, status: n.status }))
+  }
+
   // 正在运行嵌套程序
   if (activeApp) {
-    return <NestedAppContainer app={activeApp} onClose={() => setActiveApp(null)} />
+    return <NestedAppContainer app={activeApp} onClose={() => setActiveApp(null)} geneLockStatus={geneLockStatus} nodeInfo={nodeInfoForBridge} />
   }
 
   // 基因锁验证弹窗
@@ -653,6 +1046,12 @@ export default function DesktopPage() {
               <Badge className="bg-blue-600 text-white">
                 <Wifi className="h-3 w-3 mr-1" />{nodes.length} 节点在线
               </Badge>
+              {/* 开发者入口 */}
+              <Link href="/developer">
+                <Badge className="bg-purple-600 text-white cursor-pointer hover:bg-purple-700">
+                  <Code className="h-3 w-3 mr-1" />开发者
+                </Badge>
+              </Link>
             </div>
           </div>
         </div>
@@ -714,8 +1113,15 @@ export default function DesktopPage() {
                   className="group flex flex-col items-center p-3 rounded-xl hover:bg-slate-700/50 transition-all duration-200"
                   onClick={() => handleOpenApp(app)}
                 >
-                  <div className="w-14 h-14 rounded-2xl bg-gradient-to-br from-pink-500 to-purple-600 flex items-center justify-center text-2xl shadow-lg group-hover:scale-110 group-hover:shadow-pink-500/25 transition-all duration-200">
-                    {app.icon || '📱'}
+                  <div className="relative">
+                    <div className="w-14 h-14 rounded-2xl bg-gradient-to-br from-pink-500 to-purple-600 flex items-center justify-center text-2xl shadow-lg group-hover:scale-110 group-hover:shadow-pink-500/25 transition-all duration-200">
+                      {app.icon || '📱'}
+                    </div>
+                    {installedIds.includes(app.id) && (
+                      <div className="absolute -top-1 -right-1 h-4 w-4 bg-green-500 rounded-full flex items-center justify-center">
+                        <CheckCircle2 className="h-3 w-3 text-white" />
+                      </div>
+                    )}
                   </div>
                   <span className="mt-2 text-xs text-slate-300 text-center line-clamp-2 group-hover:text-white transition-colors">
                     {app.name}
@@ -738,6 +1144,16 @@ export default function DesktopPage() {
                   更多程序
                 </span>
               </button>
+
+              {/* 开发者入口 */}
+              <Link href="/developer" className="group flex flex-col items-center p-3 rounded-xl hover:bg-slate-700/50 transition-all duration-200">
+                <div className="w-14 h-14 rounded-2xl border-2 border-dashed border-purple-600/50 flex items-center justify-center text-purple-400 group-hover:border-purple-500 group-hover:text-purple-300 transition-all duration-200">
+                  <Code className="h-6 w-6" />
+                </div>
+                <span className="mt-2 text-xs text-purple-400 text-center group-hover:text-purple-300 transition-colors">
+                  开发者
+                </span>
+              </Link>
             </div>
 
             {/* 详细列表视图 */}
@@ -757,10 +1173,34 @@ export default function DesktopPage() {
                             </CardTitle>
                             <CardDescription className="text-slate-400 text-xs">
                               v{app.version} · {app.category}
+                              {installedIds.includes(app.id) && <span className="text-green-400 ml-1">· 已安装</span>}
                             </CardDescription>
                           </div>
                         </div>
-                        <ChevronRight className="h-5 w-5 text-slate-500 group-hover:text-pink-400 transition-colors" />
+                        <div className="flex items-center gap-1">
+                          {installedIds.includes(app.id) ? (
+                            <Button
+                              variant="ghost"
+                              size="sm"
+                              className="text-red-400 hover:text-red-300 hover:bg-red-900/20 h-8 w-8 p-0"
+                              onClick={(e) => { e.stopPropagation(); handleUninstall(app.id) }}
+                              title="卸载"
+                            >
+                              <Trash2 className="h-4 w-4" />
+                            </Button>
+                          ) : (
+                            <Button
+                              variant="ghost"
+                              size="sm"
+                              className="text-green-400 hover:text-green-300 hover:bg-green-900/20 h-8 w-8 p-0"
+                              onClick={(e) => { e.stopPropagation(); handleInstall(app.id) }}
+                              title="安装"
+                            >
+                              <Package className="h-4 w-4" />
+                            </Button>
+                          )}
+                          <ChevronRight className="h-5 w-5 text-slate-500 group-hover:text-pink-400 transition-colors" />
+                        </div>
                       </div>
                     </CardHeader>
                     <CardContent className="pt-0">
@@ -792,11 +1232,19 @@ export default function DesktopPage() {
 
           {/* ====== 分布式节点标签 ====== */}
           <TabsContent value="nodes" className="mt-6">
-            <div className="mb-6">
-              <h2 className="text-2xl font-bold mb-2">分布式节点网络</h2>
-              <p className="text-slate-400">
-                他人贡献的服务器、接口、算力，组成全球合作大网。无需自费买服务器，让大家免费共享资源。
-              </p>
+            <div className="mb-6 flex items-center justify-between">
+              <div>
+                <h2 className="text-2xl font-bold mb-2">分布式节点网络</h2>
+                <p className="text-slate-400">
+                  他人贡献的服务器、接口、算力，组成全球合作大网。无需自费买服务器，让大家免费共享资源。
+                </p>
+              </div>
+              <Button
+                className="bg-blue-600 hover:bg-blue-700 text-white"
+                onClick={() => setShowNodeRegModal(true)}
+              >
+                <PlusCircle className="h-4 w-4 mr-2" />注册节点
+              </Button>
             </div>
 
             {nodes.length > 0 ? (
@@ -827,6 +1275,18 @@ export default function DesktopPage() {
                         <div className="text-slate-400">贡献者: <span className="text-slate-300">{node.contributorName || '匿名'}</span></div>
                         <div className="text-slate-400">最大并发: <span className="text-slate-300">{node.maxConcurrent}</span></div>
                       </div>
+                      {node.capabilities && (
+                        <div className="mt-3 pt-3 border-t border-slate-700">
+                          <div className="text-xs text-slate-500 mb-1">节点能力:</div>
+                          <div className="flex flex-wrap gap-1">
+                            {JSON.parse(node.capabilities).map((cap: string) => (
+                              <Badge key={cap} variant="outline" className="text-xs border-blue-600/50 text-blue-300">
+                                {cap}
+                              </Badge>
+                            ))}
+                          </div>
+                        </div>
+                      )}
                       {node.miniApps.length > 0 && (
                         <div className="mt-3 pt-3 border-t border-slate-700">
                           <div className="text-xs text-slate-500 mb-1">托管的小程序:</div>
@@ -852,8 +1312,8 @@ export default function DesktopPage() {
                     其他开发者可以贡献他们的服务器、接口、算力，接入本平台作为分布式节点。
                     节点需要通过基因锁验证，才能成为共同体网络的一部分。
                   </p>
-                  <Button variant="outline" className="border-slate-600 text-slate-300">
-                    注册节点
+                  <Button variant="outline" className="border-slate-600 text-slate-300" onClick={() => setShowNodeRegModal(true)}>
+                    <PlusCircle className="h-4 w-4 mr-2" />注册节点
                   </Button>
                 </CardContent>
               </Card>
@@ -986,8 +1446,8 @@ export default function DesktopPage() {
                     '全员通过基因锁形成爱的一体性，凝聚于姻缘主线',
                     '基因锁最终使命：矫正世间错误天平，实现集体自救、大爱普照'
                   ].map((term, i) => (
-                    <div key={i} className="flex gap-2 py-1">
-                      <span className="text-amber-500 font-medium min-w-[24px]">{i + 1}.</span>
+                    <div key={i} className="flex gap-2">
+                      <span className="text-amber-600 font-medium min-w-[24px]">{i + 1}.</span>
                       <span>{term}</span>
                     </div>
                   ))}
@@ -995,34 +1455,34 @@ export default function DesktopPage() {
               </CardContent>
             </Card>
 
-            {/* 与世俗密钥的对比 */}
+            {/* 世俗密钥对比 */}
             <Card className="mt-6 bg-slate-800/50 border-slate-700">
               <CardHeader>
-                <CardTitle className="text-slate-200 flex items-center gap-2">
+                <CardTitle className="flex items-center gap-2 text-slate-300">
                   <Scale className="h-5 w-5" />
                   基因锁 vs 世俗密钥
                 </CardTitle>
               </CardHeader>
               <CardContent>
                 <div className="grid md:grid-cols-2 gap-4">
-                  <div className="p-4 bg-red-900/20 rounded-lg border border-red-800/30">
-                    <h4 className="font-semibold text-red-300 mb-2">世俗密钥锁</h4>
-                    <ul className="text-sm text-slate-400 space-y-1">
-                      <li>- 只服务资本、官僚、权力层级</li>
-                      <li>- 巩固少数人的特权</li>
-                      <li>- 绑定自私、血缘、身份、阶层</li>
-                      <li>- 狭窄、封闭、利己</li>
-                      <li>- 用来分等级、控人、收割</li>
+                  <div className="p-4 bg-amber-900/20 rounded-lg border border-amber-800/30">
+                    <h4 className="font-semibold text-amber-400 mb-3">基因锁 (本平台)</h4>
+                    <ul className="text-sm text-slate-300 space-y-2">
+                      <li>- 基于心性天平与道德认同</li>
+                      <li>- 四大共同体缺一不可</li>
+                      <li>- 内生烙印，不可仿制</li>
+                      <li>- 定向功能锁定与行为塑造</li>
+                      <li>- 最终实现集体自救、大爱普照</li>
                     </ul>
                   </div>
-                  <div className="p-4 bg-green-900/20 rounded-lg border border-green-800/30">
-                    <h4 className="font-semibold text-green-300 mb-2">共同体基因锁</h4>
-                    <ul className="text-sm text-slate-400 space-y-1">
-                      <li>- 守护弱势群体、残疾人、被辜负者</li>
-                      <li>- 筛选灵魂、锁定规则、定向塑人</li>
-                      <li>- 绑定灵魂、道义、善良、忠诚</li>
-                      <li>- 更开放、更广泛、多元全息</li>
-                      <li>- 用来护人、收拢良知、矫正天平</li>
+                  <div className="p-4 bg-slate-700/30 rounded-lg border border-slate-600/30">
+                    <h4 className="font-semibold text-slate-400 mb-3">世俗密钥 (传统系统)</h4>
+                    <ul className="text-sm text-slate-400 space-y-2">
+                      <li>- 基于密码学或权限验证</li>
+                      <li>- 可购买、转让、复制</li>
+                      <li>- 无精神内核约束</li>
+                      <li>- 容易被仿制和破解</li>
+                      <li>- 无法防止道德风险</li>
                     </ul>
                   </div>
                 </div>
@@ -1032,30 +1492,13 @@ export default function DesktopPage() {
         </Tabs>
       </div>
 
-      {/* ====== 底部栏 ====== */}
-      <div className="fixed bottom-0 left-0 right-0 bg-slate-900/90 backdrop-blur-sm border-t border-slate-700">
-        <div className="container mx-auto px-4 py-2">
-          <div className="flex items-center justify-between">
-            <div className="flex items-center gap-4">
-              <Link href="/" className="text-xs text-slate-500 hover:text-slate-300">
-                返回首页
-              </Link>
-              <Link href="/moral-ledger" className="text-xs text-slate-500 hover:text-slate-300">
-                道德账本
-              </Link>
-              <Link href="/organization" className="text-xs text-slate-500 hover:text-slate-300">
-                命运共同体
-              </Link>
-              <Link href="/apps" className="text-xs text-slate-500 hover:text-slate-300">
-                应用中心
-              </Link>
-            </div>
-            <div className="text-xs text-slate-600">
-              圆聚助残 · 嵌套式程序架构 · 基因锁保护
-            </div>
-          </div>
-        </div>
-      </div>
+      {/* 节点注册弹窗 */}
+      {showNodeRegModal && (
+        <NodeRegistrationModal
+          onClose={() => setShowNodeRegModal(false)}
+          onRegistered={fetchNodes}
+        />
+      )}
     </div>
   )
 }
