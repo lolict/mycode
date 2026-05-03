@@ -23,6 +23,9 @@ model User {
   organizationMemberships OrganizationMember[]
   comments      Comment[]
   namedLedgers  NamedLedger[]
+  developedApps MiniApp[]
+  contributedNodes NodeRegistry[]
+  appInstalls   MiniAppInstall[]
 }
 
 model Category {
@@ -241,4 +244,164 @@ model ValueContribution {
 
   createdAt     DateTime @default(now())
   updatedAt     DateTime @updatedAt
+}
+
+// ==================== 嵌套式小程序系统 ====================
+
+/// 嵌套式小程序 - 可嵌入主程序"桌面"中运行的独立程序
+/// 实现用户的"嵌套式程序"架构：主程序作为桌面入口，其他程序像图标一样嵌入
+model MiniApp {
+  id            String   @id @default(cuid())
+  
+  // 基本信息  
+  name          String                    // 小程序名称
+  description   String                    // 小程序描述
+  icon          String?                   // 图标（emoji或URL）
+  coverImage    String?                   // 封面图URL
+  
+  // 开发者信息
+  developerId   String                    // 开发者userId
+  developer     User     @relation(fields: [developerId], references: [id])
+  developerName String?                   // 开发者名称
+  
+  // 程序入口
+  entryType     String   @default("route") // iframe(嵌入网页), route(内部路由), api(API驱动)
+  entryUrl      String?                    // iframe的URL或API端点
+  entryRoute    String?                    // 内部路由路径如 /moral-ledger
+  
+  // 分类与标签
+  category      String   @default("tool")   // tool(工具), social(社交), ledger(账本), creative(创作), service(服务)
+  tags          String?                     // JSON数组标签
+  
+  // 基因锁 - 每个嵌套程序必须携带共同体基因
+  geneLockId    String?  @unique                   // 绑定的基因锁ID
+  geneLock      GeneLockRecord? @relation(fields: [geneLockId], references: [id])
+  requiresGeneLock Boolean @default(true)   // 是否需要基因锁验证才能运行
+  
+  // 道德门槛 - 使用嵌套程序需要达到的道德评分
+  minMoralScore Float  @default(0)          // 最低道德评分要求
+  requiredCommunityTags String?             // JSON数组，需要的共同体标签
+  
+  // 运行状态
+  status        String   @default("pending") // pending(待审核), active(已上线), suspended(已暂停), rejected(已拒绝)
+  version       String   @default("1.0.0")
+  
+  // 统计数据
+  installCount  Int      @default(0)        // 安装次数
+  runCount      Int      @default(0)        // 运行次数
+  rating        Float    @default(0)        // 评分
+  
+  // 分布式节点支持 - 小程序可以指定运行在哪个节点
+  preferredNodeId String?                   // 首选节点ID
+  preferredNode   NodeRegistry? @relation(fields: [preferredNodeId], references: [id])
+  
+  // 安装记录
+  installs      MiniAppInstall[]
+  
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+}
+
+/// 分布式节点注册 - 允许他人贡献服务器/接口作为节点
+/// 实现"免费吸取所有人的服务器，组成全球合作大网"的愿景
+model NodeRegistry {
+  id            String   @id @default(cuid())
+  
+  // 节点基本信息
+  name          String                    // 节点名称
+  description   String?                   // 节点描述
+  nodeType      String   @default("server") // server(服务器), api(API接口), compute(算力), storage(存储)
+  
+  // 节点连接信息
+  endpoint      String                    // 节点端点URL
+  protocol      String   @default("https")  // http, https, ws, wss
+  authToken     String?                     // 节点认证令牌
+  
+  // 节点贡献者信息
+  contributorId String                     // 贡献者userId
+  contributor   User     @relation(fields: [contributorId], references: [id])
+  contributorName String?                  // 贡献者名称
+  
+  // 节点能力描述
+  capabilities  String?                     // JSON数组，节点支持的能力
+  region        String?                     // 节点所在地区
+  maxConcurrent Int    @default(100)        // 最大并发数
+  
+  // 节点状态
+  status        String   @default("pending") // pending(待验证), active(活跃), offline(离线), suspended(暂停)
+  lastHeartbeat DateTime?                    // 最后心跳时间
+  uptime        Float    @default(0)        // 在线率
+  
+  // 基因锁 - 节点也必须通过基因锁验证
+  geneLockId    String?                     // 绑定的基因锁ID
+  requiresGeneLock Boolean @default(true)
+  
+  // 统计
+  totalRequests Int      @default(0)        // 总请求数
+  successRate   Float    @default(0)        // 成功率
+  avgLatency    Float    @default(0)        // 平均延迟(ms)
+  
+  // 关联的小程序
+  miniApps      MiniApp[]
+  
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+}
+
+/// 基因锁记录 - 嵌套式程序的灵魂密码
+/// 实现用户"基因锁"理念：每个代码、每个成员、每个功能都自带共同体基因烙印
+model GeneLockRecord {
+  id            String   @id @default(cuid())
+  
+  // 基因锁持有者
+  holderType    String                    // user(用户), app(小程序), node(节点)
+  holderId      String                    // 持有者ID（userId/appId/nodeId）
+  
+  // 四大共同体认同
+  destinyCommunity    Boolean @default(false) // 命运共同体
+  disabledAbleCommunity Boolean @default(false) // 残健共同体  
+  loveCommunity       Boolean @default(false) // 爱的共同体
+  laborCommunity      Boolean @default(false) // 劳动共享共同体
+  
+  // 心性天平考核
+  heartScaleScore Float @default(0)        // 心性天平评分 (0-100)
+  loyaltyScore    Float @default(0)        // 忠诚度评分 (0-100)
+  kindnessProof   String?                   // 善良证明（描述）
+  
+  // 基因锁状态
+  status        String   @default("inactive") // inactive(未激活), pending(待激活), active(已激活), revoked(已撤销)
+  activationKey String?                     // 激活密钥
+  activatedAt   DateTime?                   // 激活时间
+  
+  // 基因锁条款认同
+  agreedToTerms Boolean @default(false)     // 是否认同基因锁十二条纲领
+  termsVersion  String  @default("1.0")     // 条款版本
+  
+  // 关联
+  miniApp       MiniApp?
+  
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+}
+
+/// 小程序安装记录 - 用户安装的嵌套程序
+model MiniAppInstall {
+  id            String   @id @default(cuid())
+  userId        String
+  user          User     @relation(fields: [userId], references: [id])
+  miniAppId     String
+  miniApp       MiniApp  @relation(fields: [miniAppId], references: [id])
+  
+  // 安装位置
+  position      Int      @default(0)        // 在桌面上的位置序号
+  isPinned      Boolean  @default(false)     // 是否固定在桌面
+  
+  // 运行记录
+  lastRunAt     DateTime?                    // 最后运行时间
+  runCount      Int      @default(0)        // 运行次数
+  
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+  
+  @@unique([userId, miniAppId])
 }
