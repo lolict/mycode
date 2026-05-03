@@ -405,3 +405,111 @@ model MiniAppInstall {
   
   @@unique([userId, miniAppId])
 }
+
+// ==================== 创意归档与思维图谱系统 ====================
+
+/// 归档分类 - 层级分类体系
+model ArchiveCategory {
+  id            String   @id @default(cuid())
+  name          String                    // 分类名称
+  description   String?                   // 分类描述
+  icon          String?                   // 图标(emoji)
+  color         String?                   // 颜色标识
+  
+  // 层级: foundation(底层) / architecture(架构) / application(应用) / philosophy(哲学)
+  layer         String   @default("application")
+  
+  // 排序
+  sortOrder     Int      @default(0)
+  
+  // 父分类
+  parentCategoryId String?
+  parentCategory   ArchiveCategory? @relation("CategoryHierarchy", fields: [parentCategoryId], references: [id])
+  childCategories  ArchiveCategory[] @relation("CategoryHierarchy")
+  
+  // 关联的归档条目
+  archives      CreativeArchive[]
+  
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+}
+
+/// 创意归档 - 存储每个创意/草稿
+model CreativeArchive {
+  id            String   @id @default(cuid())
+  
+  // 基本信息
+  title         String                    // 创意标题
+  content       String                    // 创意内容(完整描述)
+  summary       String?                   // 摘要(精简版)
+  
+  // 分类
+  categoryId    String?
+  category      ArchiveCategory? @relation(fields: [categoryId], references: [id])
+  
+  // 层级: foundation(底层基础) / architecture(架构设计) / application(应用功能) / philosophy(哲学思想)
+  layer         String   @default("application")
+  
+  // 状态: draft(草稿) / developing(开发中) / implemented(已实现) / deferred(搁置) / deprecated(废弃)
+  status        String   @default("draft")
+  
+  // 优先级 0-100 (越高越优先)
+  priority      Int      @default(50)
+  
+  // 完成度 0-100
+  completion    Int      @default(0)
+  
+  // 特征向量 - JSON对象，存储多维特征值
+  // 例如: { "道德": 80, "技术": 30, "组织": 60, "经济": 40 }
+  featureVector String?
+  
+  // 标签 - JSON数组
+  tags          String?
+  
+  // 来源 - 哪个对话/文档产生的
+  source        String?
+  
+  // 版本 - 迭代版本号
+  version       String   @default("1.0")
+  
+  // 关联的用户
+  authorId      String?
+  
+  // 关系
+  outgoingRelations  ArchiveRelation[] @relation("OutgoingRelations")
+  incomingRelations  ArchiveRelation[] @relation("IncomingRelations")
+  
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+}
+
+/// 创意关系 - 创意之间的关联
+model ArchiveRelation {
+  id            String   @id @default(cuid())
+  
+  // 关系的源和目标
+  fromId        String
+  from          CreativeArchive @relation("OutgoingRelations", fields: [fromId], references: [id])
+  toId          String
+  to            CreativeArchive @relation("IncomingRelations", fields: [toId], references: [id])
+  
+  // 关系类型
+  // dependency: A依赖B(B必须先完成才能做A)
+  // parent-child: A是B的子功能(B是上层的,A是下层的实现)
+  // related: A和B有关联
+  // contradiction: A和B矛盾
+  // fusion: A和B可以融合
+  // prerequisite: A是B的前置条件
+  relationType  String   @default("related")
+  
+  // 距离评分 0-100 (0=完全相同/紧密关联, 100=完全无关)
+  distance      Int      @default(50)
+  
+  // 关系描述
+  description   String?
+  
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+  
+  @@unique([fromId, toId, relationType])
+}

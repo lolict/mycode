@@ -250,6 +250,25 @@ const BUILT_IN_APPS: MiniAppInfo[] = [
     rating: 4.4,
     developerName: '莫姓成年',
     geneLockId: null
+  },
+  {
+    id: 'archive',
+    name: '创意归档',
+    description: '思维图谱与创意归档系统，按层级/距离/依赖关系分类管理所有创意',
+    icon: '🗄️',
+    category: 'core',
+    entryType: 'route',
+    entryRoute: '/archive',
+    entryUrl: null,
+    requiresGeneLock: false,
+    minMoralScore: 0,
+    status: 'active',
+    version: '1.0.0',
+    installCount: 500,
+    runCount: 2000,
+    rating: 4.7,
+    developerName: '莫姓成年',
+    geneLockId: null
   }
 ]
 
