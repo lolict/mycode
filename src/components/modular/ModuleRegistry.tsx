@@ -1,6 +1,6 @@
 'use client'
 
-import { createContext, useContext, ReactNode } from 'react'
+import { createContext, useContext, ReactNode, useState, useCallback } from 'react'
 
 interface ModuleConfig {
   id: string
@@ -23,23 +23,31 @@ interface ModuleRegistryContextType {
 const ModuleRegistryContext = createContext<ModuleRegistryContextType | null>(null)
 
 export function ModuleRegistryProvider({ children }: { children: ReactNode }) {
-  const [modules] = useState(new Map<string, ModuleConfig>())
+  const [modules, setModules] = useState(new Map<string, ModuleConfig>())
 
-  const registerModule = (module: ModuleConfig) => {
-    modules.set(module.id, module)
-  }
+  const registerModule = useCallback((mod: ModuleConfig) => {
+    setModules(prev => {
+      const next = new Map(prev)
+      next.set(mod.id, mod)
+      return next
+    })
+  }, [])
 
-  const unregisterModule = (id: string) => {
-    modules.delete(id)
-  }
+  const unregisterModule = useCallback((id: string) => {
+    setModules(prev => {
+      const next = new Map(prev)
+      next.delete(id)
+      return next
+    })
+  }, [])
 
-  const getModule = (id: string) => {
+  const getModule = useCallback((id: string) => {
     return modules.get(id)
-  }
+  }, [modules])
 
-  const getModulesByCategory = (category: string) => {
-    return Array.from(modules.values()).filter(module => module.category === category)
-  }
+  const getModulesByCategory = useCallback((category: string) => {
+    return Array.from(modules.values()).filter(mod => mod.category === category)
+  }, [modules])
 
   return (
     <ModuleRegistryContext.Provider value={{

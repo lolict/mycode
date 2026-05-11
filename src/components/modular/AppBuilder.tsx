@@ -9,7 +9,7 @@ import { Label } from '@/components/ui/label'
 import { Textarea } from '@/components/ui/textarea'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import { useModuleRegistry } from './ModuleRegistry'
-import { DragDropContext, Droppable, Draggable } from 'react-beautiful-dnd'
+import { DragDropContext, Droppable, Draggable } from '@hello-pangea/dnd'
 import { Plus, Trash2, Settings, Play, Save, Eye } from 'lucide-react'
 
 interface AppTemplate {
@@ -273,8 +273,8 @@ export function AppBuilder({ onSave, onPreview }: AppBuilderProps) {
                           className="space-y-2"
                         >
                           {template.modules.map((moduleId, index) => {
-                            const module = getModuleById(moduleId)
-                            if (!module) return null
+                            const mod = getModuleById(moduleId)
+                            if (!mod) return null
 
                             return (
                               <Draggable key={moduleId} draggableId={moduleId} index={index}>
@@ -289,8 +289,8 @@ export function AppBuilder({ onSave, onPreview }: AppBuilderProps) {
                                   >
                                     <div className="flex items-center justify-between">
                                       <div className="flex-1">
-                                        <div className="font-medium">{module.name}</div>
-                                        <div className="text-sm text-gray-600">{module.description}</div>
+                                        <div className="font-medium">{mod.name}</div>
+                                        <div className="text-sm text-gray-600">{mod.description}</div>
                                       </div>
                                       <Button
                                         size="sm"

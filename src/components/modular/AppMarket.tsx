@@ -18,7 +18,8 @@ import {
   TrendingUp,
   Clock,
   Code,
-  Palette
+  Palette,
+  BookOpen
 } from 'lucide-react'
 
 interface AppTemplate {

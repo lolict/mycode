@@ -26,7 +26,7 @@ export class ErrorIsolator {
     this.stats = {
       totalIsolations: 0,
       activeZones: 0,
-      containedErrors: number
+      containedErrors: 0
     }
     this.zones = new Map()
     this.maxZones = 50

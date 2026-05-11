@@ -18,11 +18,11 @@ export async function GET(request: NextRequest) {
     }
 
     if (featured === 'true') {
-      // 推荐项目逻辑：当前金额达到目标50%以上或者即将结束的项目
+      // 推荐项目逻辑：即将结束的项目或已有捐赠的项目
       whereClause.OR = [
         {
-          currentAmount: {
-            gte: db.project.fields.targetAmount * 0.5
+          donorCount: {
+            gt: 0
           }
         },
         {
@@ -70,10 +70,11 @@ export async function GET(request: NextRequest) {
     // 更新donorCount字段
     const projectsWithDonorCount = await Promise.all(
       projects.map(async (project) => {
-        const donorCount = await db.donation.count({
+        const donations = await db.donation.findMany({
           where: { projectId: project.id },
-          distinct: ['donorId']
+          select: { donorId: true }
         })
+        const donorCount = new Set(donations.map(d => d.donorId)).size
         return {
           ...project,
           donorCount

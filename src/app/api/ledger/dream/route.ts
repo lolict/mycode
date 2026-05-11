@@ -122,7 +122,7 @@ export async function POST(request: NextRequest) {
     }
 
     // 构建特殊数据
-    let dreamData = {}
+    let dreamData: any = {}
     if (specialData) {
       dreamData = {
         dreamType: specialData.dreamType || 'life', // 梦想类型：life, career, health, family, innovation, social

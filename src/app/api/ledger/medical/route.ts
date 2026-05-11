@@ -116,7 +116,7 @@ export async function POST(request: NextRequest) {
     }
 
     // 构建特殊数据
-    let medicalData = {}
+    let medicalData: any = {}
     if (specialData) {
       medicalData = {
         diseaseType: specialData.diseaseType || '', // 疾病类型

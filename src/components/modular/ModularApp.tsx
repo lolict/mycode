@@ -147,16 +147,16 @@ export function ModularApp({ appId, name, description, layout = 'tabs' }: Modula
         <CardContent>
           <div className="space-y-4">
             {instances.map((instance) => {
-              const module = modules.get(instance.moduleId)
+              const mod = modules.get(instance.moduleId)
               return (
                 <div key={instance.id} className="flex items-center justify-between p-4 border rounded-lg">
                   <div className="flex items-center gap-4">
                     <div className="p-2 bg-gray-100 rounded">
-                      {module?.config?.icon || <Settings className="h-5 w-5" />}
+                      {mod?.config?.icon || <Settings className="h-5 w-5" />}
                     </div>
                     <div>
                       <div className="font-medium">{instance.name}</div>
-                      <div className="text-sm text-gray-600">{module?.description}</div>
+                      <div className="text-sm text-gray-600">{mod?.description}</div>
                     </div>
                   </div>
                   
@@ -204,8 +204,8 @@ export function ModularApp({ appId, name, description, layout = 'tabs' }: Modula
         {instances.map((instance) => {
           if (instance.status !== 'running') return null
           
-          const module = modules.get(instance.moduleId)
-          if (!module) return null
+          const mod = modules.get(instance.moduleId)
+          if (!mod) return null
 
           return (
             <Card key={instance.id} className="h-fit">
@@ -214,13 +214,13 @@ export function ModularApp({ appId, name, description, layout = 'tabs' }: Modula
                   <CardTitle className="text-lg">{instance.name}</CardTitle>
                   {getInstanceStatusBadge(instance.status)}
                 </div>
-                <CardDescription>{module.description}</CardDescription>
+                <CardDescription>{mod.description}</CardDescription>
               </CardHeader>
               <CardContent>
                 <div className="min-h-[200px] flex items-center justify-center text-gray-500">
                   模块内容区域
                   <br />
-                  <span className="text-sm">({module.version})</span>
+                  <span className="text-sm">({mod.version})</span>
                 </div>
               </CardContent>
             </Card>
@@ -260,14 +260,14 @@ export function ModularApp({ appId, name, description, layout = 'tabs' }: Modula
             <h4 className="font-medium mb-2">模块配置</h4>
             <div className="space-y-2">
               {instances.map((instance) => {
-                const module = modules.get(instance.moduleId)
+                const mod = modules.get(instance.moduleId)
                 return (
                   <div key={instance.id} className="p-3 border rounded">
                     <div className="flex items-center justify-between mb-1">
                       <span className="font-medium">{instance.name}</span>
                       {getInstanceStatusBadge(instance.status)}
                     </div>
-                    <div className="text-sm text-gray-600">{module?.description}</div>
+                    <div className="text-sm text-gray-600">{mod?.description}</div>
                   </div>
                 )
               })}

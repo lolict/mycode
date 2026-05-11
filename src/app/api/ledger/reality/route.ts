@@ -122,7 +122,7 @@ export async function POST(request: NextRequest) {
     }
 
     // 构建特殊数据
-    let realityData = {}
+    let realityData: any = {}
     if (specialData) {
       realityData = {
         realityType: specialData.realityType || 'daily', // 实账本类型：daily, struggle, achievement, change, truth
