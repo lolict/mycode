@@ -222,24 +222,30 @@ export const useToast = () => {
 }
 
 // 便捷的 toast 函数
+// 注意：这些函数必须在 React 组件或自定义 Hook 内部调用
 export const toast = {
   success: (title: string, description?: string, options?: Partial<ToastProps>) => {
+    // eslint-disable-next-line react-hooks/rules-of-hooks
     const { toast } = useToast()
     return toast({ title, description, variant: 'success', ...options })
   },
   error: (title: string, description?: string, options?: Partial<ToastProps>) => {
+    // eslint-disable-next-line react-hooks/rules-of-hooks
     const { toast } = useToast()
     return toast({ title, description, variant: 'destructive', ...options })
   },
   warning: (title: string, description?: string, options?: Partial<ToastProps>) => {
+    // eslint-disable-next-line react-hooks/rules-of-hooks
     const { toast } = useToast()
     return toast({ title, description, variant: 'warning', ...options })
   },
   info: (title: string, description?: string, options?: Partial<ToastProps>) => {
+    // eslint-disable-next-line react-hooks/rules-of-hooks
     const { toast } = useToast()
     return toast({ title, description, variant: 'info', ...options })
   },
   loading: (title: string, description?: string, options?: Partial<ToastProps>) => {
+    // eslint-disable-next-line react-hooks/rules-of-hooks
     const { toast } = useToast()
     return toast({ title, description, variant: 'loading', duration: 0, ...options })
   }

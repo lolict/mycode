@@ -7,7 +7,6 @@ import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import { Textarea } from '@/components/ui/textarea'
 import { Label } from '@/components/ui/label'
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import { Badge } from '@/components/ui/badge'
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import { ArrowLeft, Upload, FileText, Eye, EyeOff, CheckCircle, Clock, XCircle } from 'lucide-react'
@@ -204,21 +203,18 @@ export default function ProjectDocumentsPage() {
                 <form onSubmit={handleSubmit} className="space-y-4">
                   <div>
                     <Label htmlFor="docType">文档类型</Label>
-                    <Select value={formData.docType} onValueChange={(value) => setFormData(prev => ({ ...prev, docType: value }))}>
-                      <SelectTrigger>
-                        <SelectValue placeholder="选择文档类型" />
-                      </SelectTrigger>
-                      <SelectContent>
-                        {DOCUMENT_TYPES.map((type) => (
-                          <SelectItem key={type.value} value={type.value}>
-                            <div>
-                              <div className="font-medium">{type.label}</div>
-                              <div className="text-xs text-gray-500">{type.description}</div>
-                            </div>
-                          </SelectItem>
-                        ))}
-                      </SelectContent>
-                    </Select>
+                    <select
+                      value={formData.docType}
+                      onChange={(e) => setFormData(prev => ({ ...prev, docType: e.target.value }))}
+                      className="w-full h-10 rounded-md border border-input bg-background px-3 py-2 text-sm"
+                    >
+                      <option value="">选择文档类型</option>
+                      {DOCUMENT_TYPES.map((type) => (
+                        <option key={type.value} value={type.value}>
+                          {type.label} - {type.description}
+                        </option>
+                      ))}
+                    </select>
                   </div>
 
                   <div>

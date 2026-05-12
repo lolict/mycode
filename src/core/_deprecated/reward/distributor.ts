@@ -235,7 +235,7 @@ export class RewardDistributor {
     try {
       if (typeof globalThis !== 'undefined') {
         const balances = (globalThis as any).__userBalances || {}
-        balances[userId] = (balances[userId] || 0) + amount
+        balances[userId] = (balances[userId] || 0) + amount;
         (globalThis as any).__userBalances = balances
       }
     } catch {
