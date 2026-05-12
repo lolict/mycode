@@ -347,6 +347,111 @@ export default function SimpleStableHome() {
         </div>
       </div>
 
+      {/* 功能导航 — 插板·德系·道德股权 */}
+      <div className="bg-white py-12">
+        <div className="container mx-auto px-4">
+          <div className="text-center mb-8">
+            <h2 className="text-3xl font-bold text-gray-900 mb-4">平台核心架构</h2>
+            <p className="text-xl text-gray-600 max-w-3xl mx-auto">
+              插板型号架构 · 德系五十四模块 · 道德股权系统
+            </p>
+          </div>
+          <div className="grid md:grid-cols-3 gap-6">
+            <Card
+              className="hover:shadow-xl transition-all duration-300 cursor-pointer group hover:-translate-y-2 border-2 border-transparent hover:border-orange-400"
+              onClick={() => window.location.href = '/plugboard'}
+            >
+              <CardContent className="p-8 text-center">
+                <div className="w-16 h-16 bg-orange-100 rounded-2xl flex items-center justify-center mx-auto mb-4 group-hover:scale-110 transition-transform">
+                  <span className="text-3xl">🔌</span>
+                </div>
+                <h3 className="text-xl font-bold mb-3 text-gray-900">插板型号架构</h3>
+                <p className="text-gray-600 mb-4">
+                  7种插头型号 × 7种插槽型号 × 11条兼容规则<br/>
+                  词汇/UI/数据/行为/信号/样式/配置 全可插拔
+                </p>
+                <div className="flex flex-wrap gap-1 justify-center">
+                  <Badge variant="secondary" className="text-xs">词汇插头</Badge>
+                  <Badge variant="secondary" className="text-xs">UI插头</Badge>
+                  <Badge variant="secondary" className="text-xs">神经节点</Badge>
+                  <Badge variant="secondary" className="text-xs">兼容检查</Badge>
+                </div>
+              </CardContent>
+            </Card>
+
+            <Card
+              className="hover:shadow-xl transition-all duration-300 cursor-pointer group hover:-translate-y-2 border-2 border-transparent hover:border-blue-400"
+              onClick={() => window.location.href = '/dexi'}
+            >
+              <CardContent className="p-8 text-center">
+                <div className="w-16 h-16 bg-blue-100 rounded-2xl flex items-center justify-center mx-auto mb-4 group-hover:scale-110 transition-transform">
+                  <span className="text-3xl">⚙️</span>
+                </div>
+                <h3 className="text-xl font-bold mb-3 text-gray-900">德系五十四模块</h3>
+                <p className="text-gray-600 mb-4">
+                  10大分类 × 54个模块<br/>
+                  核心基础·认证授权·众筹核心·助残服务·财务·社交·内容·分析·神经·道德
+                </p>
+                <div className="flex flex-wrap gap-1 justify-center">
+                  <Badge variant="secondary" className="text-xs">10大分类</Badge>
+                  <Badge variant="secondary" className="text-xs">54模块</Badge>
+                  <Badge variant="secondary" className="text-xs">可扩展</Badge>
+                </div>
+              </CardContent>
+            </Card>
+
+            <Card
+              className="hover:shadow-xl transition-all duration-300 cursor-pointer group hover:-translate-y-2 border-2 border-transparent hover:border-purple-400"
+              onClick={() => window.location.href = '/moral-equity'}
+            >
+              <CardContent className="p-8 text-center">
+                <div className="w-16 h-16 bg-purple-100 rounded-2xl flex items-center justify-center mx-auto mb-4 group-hover:scale-110 transition-transform">
+                  <span className="text-3xl">⚖️</span>
+                </div>
+                <h3 className="text-xl font-bold mb-3 text-gray-900">道德股权系统</h3>
+                <p className="text-gray-600 mb-4">
+                  五德评分·22个道德任务·43条词汇<br/>
+                  仁义礼智信 → 公民→君子→贤人→圣人
+                </p>
+                <div className="flex flex-wrap gap-1 justify-center">
+                  <Badge variant="secondary" className="text-xs">五德评分</Badge>
+                  <Badge variant="secondary" className="text-xs">22任务</Badge>
+                  <Badge variant="secondary" className="text-xs">43词汇</Badge>
+                </div>
+              </CardContent>
+            </Card>
+          </div>
+
+          {/* 更多入口 */}
+          <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mt-8">
+            <Card className="hover:shadow-md transition-shadow cursor-pointer" onClick={() => window.location.href = '/living'}>
+              <CardContent className="p-4 text-center">
+                <span className="text-2xl">🧬</span>
+                <p className="text-sm font-medium mt-2">活体架构</p>
+              </CardContent>
+            </Card>
+            <Card className="hover:shadow-md transition-shadow cursor-pointer" onClick={() => window.location.href = '/cloud'}>
+              <CardContent className="p-4 text-center">
+                <span className="text-2xl">☁️</span>
+                <p className="text-sm font-medium mt-2">云端同步</p>
+              </CardContent>
+            </Card>
+            <Card className="hover:shadow-md transition-shadow cursor-pointer" onClick={() => window.location.href = '/ledger'}>
+              <CardContent className="p-4 text-center">
+                <span className="text-2xl">📒</span>
+                <p className="text-sm font-medium mt-2">多账本</p>
+              </CardContent>
+            </Card>
+            <Card className="hover:shadow-md transition-shadow cursor-pointer" onClick={() => window.location.href = '/apps'}>
+              <CardContent className="p-4 text-center">
+                <span className="text-2xl">📱</span>
+                <p className="text-sm font-medium mt-2">应用市场</p>
+              </CardContent>
+            </Card>
+          </div>
+        </div>
+      </div>
+
       {/* Footer */}
       <div className="bg-gradient-to-r from-pink-500 to-purple-600 text-white py-12">
         <div className="container mx-auto px-4">

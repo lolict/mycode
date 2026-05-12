@@ -2,13 +2,13 @@
 
 import { usePathname } from 'next/navigation'
 import Link from 'next/link'
-import { Home, Grid3X3, BookOpen, Sparkles, User } from 'lucide-react'
+import { Home, Cpu, BookOpen, Scale, User } from 'lucide-react'
 
 const tabs = [
   { href: '/', label: '首页', icon: Home },
-  { href: '/dexi', label: '德系', icon: Sparkles },
-  { href: '/apps', label: '应用', icon: Grid3X3 },
-  { href: '/ledger', label: '账本', icon: BookOpen },
+  { href: '/plugboard', label: '插板', icon: Cpu },
+  { href: '/dexi', label: '德系', icon: BookOpen },
+  { href: '/moral-equity', label: '道德', icon: Scale },
   { href: '/account', label: '我的', icon: User },
 ]
 

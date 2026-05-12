@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { db } from '@/lib/db'
-import { getModuleByCode } from '@/lib/dexi-registry'
+import { getDexiModule as getModuleByCode } from '@/lib/dexi-registry'
 
 export async function GET(
   request: NextRequest,
