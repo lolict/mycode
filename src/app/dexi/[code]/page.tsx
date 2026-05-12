@@ -103,7 +103,12 @@ export default function DexiModulePage() {
 
       if (res.ok) {
         const data = await res.json()
-        setSubmitResult({ success: true, value: data.value })
+        setSubmitResult({
+          success: true,
+          value: data.value,
+          fiveDimensions: data.fiveDimensions,
+          dopamine: data.dopamine,
+        })
         setFormData({})
         setShowForm(false)
         setActiveTab('records')
@@ -452,7 +457,7 @@ export default function DexiModulePage() {
                         ? 'bg-green-50 border border-green-200'
                         : 'bg-red-50 border border-red-200'
                     }`}>
-                      <p className={`text-sm font-medium ${
+                      <p className={`text-sm font-medium mb-2 ${
                         submitResult.success ? 'text-green-700' : 'text-red-700'
                       }`}>
                         {submitResult.success
@@ -460,6 +465,33 @@ export default function DexiModulePage() {
                           : `创建失败：${submitResult.error}`
                         }
                       </p>
+                      {submitResult.success && submitResult.fiveDimensions && (
+                        <div className="mt-3 space-y-2">
+                          <p className="text-xs text-green-600 font-medium">五维道德评分：</p>
+                          <div className="flex gap-3">
+                            {[
+                              { label: '善良', val: submitResult.fiveDimensions.kindness, color: 'bg-red-400' },
+                              { label: '恻隐', val: submitResult.fiveDimensions.compassion, color: 'bg-orange-400' },
+                              { label: '正义', val: submitResult.fiveDimensions.justice, color: 'bg-blue-400' },
+                              { label: '奉献', val: submitResult.fiveDimensions.dedication, color: 'bg-purple-400' },
+                              { label: '严重度', val: submitResult.fiveDimensions.severity, color: 'bg-yellow-400' },
+                            ].map(dim => (
+                              <div key={dim.label} className="text-center">
+                                <div className="w-8 h-8 rounded-full mx-auto mb-1 flex items-center justify-center text-white text-xs font-bold" style={{ backgroundColor: dim.color.replace('bg-', '') }}>
+                                  {dim.val}
+                                </div>
+                                <span className="text-xs text-gray-500">{dim.label}</span>
+                              </div>
+                            ))}
+                          </div>
+                          <p className="text-xs text-gray-500">加权总分: {submitResult.fiveDimensions.total}</p>
+                          {submitResult.dopamine?.triggered && (
+                            <p className="text-xs text-purple-600 mt-1">
+                              多巴胺联动成功！分泌 +{submitResult.dopamine.dopamineValue.toFixed(1)} 多巴胺
+                            </p>
+                          )}
+                        </div>
+                      )}
                     </div>
                   )}
 

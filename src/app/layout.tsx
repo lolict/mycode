@@ -1,6 +1,7 @@
 import type { Metadata } from "next";
 import { Geist, Geist_Mono } from "next/font/google";
 import "./globals.css";
+import TabBar from "@/components/layout/TabBar";
 
 const geistSans = Geist({
   variable: "--font-geist-sans",
@@ -26,6 +27,9 @@ export default function RootLayout({
     <html lang="zh-CN">
       <body className={`${geistSans.variable} ${geistMono.variable} antialiased`}>
         {children}
+        <TabBar />
+        {/* 底部TabBar占位，防止内容被遮挡 */}
+        <div className="h-16" />
       </body>
     </html>
   );
