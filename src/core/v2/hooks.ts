@@ -7,6 +7,7 @@ import { useEffect, useRef, useCallback, useState } from 'react'
 import { getNervousSystem, type NeuralPlug, type NeuralSignal } from './nervous'
 import { getDigestiveSystem, type DigestContext } from './digestive'
 import { getDopamineEngine, type MoralAction, type FiveDimensionScore } from './dopamine'
+import { getIdentityManager, type LocalIdentity, type IdentitySummary } from './identity'
 
 // ============================================
 // useNeuralPlug — 组件接入神经系统
@@ -156,6 +157,79 @@ export function useDopamine(userId?: string) {
   }, [userId])
 
   return { release, lastScore, totalDopamine, refreshScore }
+}
+
+// ============================================
+// useIdentity — 本地优先身份系统
+// ============================================
+
+/**
+ * 获取当前设备身份
+ *
+ * 用法：
+ * const { identity, loading, updateProfile, summary } = useIdentity()
+ *
+ * 自动从数据库加载身份，首次访问会自动创建
+ */
+export function useIdentity() {
+  const [identity, setIdentity] = useState<LocalIdentity | null>(null)
+  const [summary, setSummary] = useState<IdentitySummary | null>(null)
+  const [loading, setLoading] = useState(true)
+
+  useEffect(() => {
+    const initIdentity = async () => {
+      try {
+        const manager = getIdentityManager()
+        const id = await manager.init()
+        setIdentity(id)
+
+        // 异步获取摘要
+        const sum = await manager.getIdentitySummary()
+        setSummary(sum)
+      } catch (err) {
+        console.error('身份初始化失败:', err)
+      } finally {
+        setLoading(false)
+      }
+    }
+    initIdentity()
+  }, [])
+
+  const updateProfile = useCallback(async (
+    updates: Partial<Pick<LocalIdentity, 'name' | 'avatar' | 'userType' | 'bio' | 'location'>>
+  ) => {
+    const manager = getIdentityManager()
+    const updated = await manager.updateProfile(updates)
+    setIdentity(updated)
+
+    // 刷新摘要
+    const sum = await manager.getIdentitySummary()
+    setSummary(sum)
+
+    return updated
+  }, [])
+
+  const refreshSummary = useCallback(async () => {
+    try {
+      const manager = getIdentityManager()
+      const sum = await manager.getIdentitySummary()
+      setSummary(sum)
+    } catch {
+      // 忽略
+    }
+  }, [])
+
+  return {
+    identity,
+    summary,
+    loading,
+    updateProfile,
+    refreshSummary,
+    /** 快速获取设备ID，不需要异步 */
+    deviceId: identity?.deviceId || 'pending',
+    /** 显示名称 */
+    displayName: identity?.name || (identity ? `用户${identity.deviceId.slice(-6)}` : '加载中...'),
+  }
 }
 
 // ============================================

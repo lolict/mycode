@@ -22,7 +22,14 @@ export async function GET() {
       orderBy: { createdAt: 'desc' }
     })
 
-    return NextResponse.json(ledgers)
+    // Parse JSON fields for client consumption
+    const parsed = ledgers.map((l: any) => ({
+      ...l,
+      specialData: l.specialData ? JSON.parse(l.specialData) : null,
+      tags: l.tags ? JSON.parse(l.tags) : null,
+    }))
+
+    return NextResponse.json(parsed)
   } catch (error) {
     const digestive = getDigestiveSystem()
     const digested = digestive.digest(error, { source: 'ledger-api', operation: 'fetch-ledgers' })
@@ -51,7 +58,7 @@ export async function POST(request: NextRequest) {
     const validTypes = [
       'technology', 'technique', 'public_tool', 'intelligence', 
       'energy', 'charity', 'donation', 'volunteer', 'time', 
-      'deposit', 'cooperation'
+      'deposit', 'cooperation', 'art'
     ]
     
     if (!validTypes.includes(ledgerType)) {
@@ -76,7 +83,10 @@ export async function POST(request: NextRequest) {
         ledgerType,
         content,
         value: parseFloat(value) || 0,
-        status: 'pending'
+        status: 'pending',
+        specialData: body.specialData ? JSON.stringify(body.specialData) : null,
+        tags: body.tags ? JSON.stringify(body.tags) : null,
+        privacy: body.privacy || 'private',
       }
     })
 

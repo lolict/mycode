@@ -27,24 +27,24 @@ export interface VolunteerNode {
   name: string
   url: string
   description?: string
-  providedBy: string       // 志愿者名称
-  contactInfo?: string     // 联系方式
+  providedBy: string
+  contactInfo?: string
   nodeType: 'api' | 'relay' | 'compute' | 'storage' | 'full'
   status: 'active' | 'offline' | 'pending' | 'rejected'
   lastHeartbeat: number | null
-  uptime: number           // 在线率百分比
-  region?: string          // 节点所在地区
-  capabilities: string[]   // 节点能力
+  uptime: number
+  region?: string
+  capabilities: string[]
   registeredAt: number
 }
 
 export interface NodeHealthCheck {
   nodeId: string
   online: boolean
-  responseTime: number     // 毫秒
+  responseTime: number
   version?: string
   activeConnections?: number
-  load?: number            // 负载百分比
+  load?: number
   timestamp: number
 }
 
@@ -55,11 +55,10 @@ export interface NodeHealthCheck {
 class VolunteerNodeManager {
   private healthCheckIntervalId: NodeJS.Timeout | null = null
   private healthResults: Map<string, NodeHealthCheck> = new Map()
+  private nodesCache: Map<string, VolunteerNode> = new Map()
 
   /**
    * 注册新的志愿者节点
-   *
-   * 别人自愿填写自己的服务器地址，支持我们的平台
    */
   async registerNode(node: Omit<VolunteerNode, 'id' | 'status' | 'lastHeartbeat' | 'uptime' | 'registeredAt'>): Promise<VolunteerNode> {
     const id = `node_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`
@@ -67,7 +66,7 @@ class VolunteerNodeManager {
     const newNode: VolunteerNode = {
       ...node,
       id,
-      status: 'pending', // 需要验证后才能变成 active
+      status: 'pending',
       lastHeartbeat: null,
       uptime: 0,
       registeredAt: Date.now(),
@@ -80,7 +79,30 @@ class VolunteerNodeManager {
       newNode.lastHeartbeat = Date.now()
     }
 
-    // 存储到本地
+    // 持久化到数据库
+    try {
+      await db.volunteerNode.create({
+        data: {
+          id: newNode.id,
+          name: newNode.name,
+          url: newNode.url,
+          description: newNode.description,
+          providedBy: newNode.providedBy,
+          contactInfo: newNode.contactInfo,
+          nodeType: newNode.nodeType,
+          status: newNode.status,
+          lastHeartbeat: newNode.lastHeartbeat ? new Date(newNode.lastHeartbeat) : null,
+          uptime: newNode.uptime,
+          region: newNode.region,
+          capabilities: JSON.stringify(newNode.capabilities),
+        },
+      })
+    } catch (error) {
+      console.error('志愿者节点持久化失败:', error)
+    }
+
+    // 更新缓存
+    this.nodesCache.set(id, newNode)
     this.healthResults.set(id, health)
 
     return newNode
@@ -93,9 +115,9 @@ class VolunteerNodeManager {
     const startTime = Date.now()
 
     try {
-      const response = await fetch(`${url}/api/health`, {
+      const response = await fetch(`${url}/api/cloud/health`, {
         method: 'GET',
-        signal: AbortSignal.timeout(5000), // 5秒超时
+        signal: AbortSignal.timeout(5000),
       })
 
       const responseTime = Date.now() - startTime
@@ -130,37 +152,50 @@ class VolunteerNodeManager {
   }
 
   /**
+   * 获取所有节点（从数据库读取）
+   */
+  async getAllNodes(): Promise<VolunteerNode[]> {
+    try {
+      const dbNodes = await db.volunteerNode.findMany({
+        orderBy: { registeredAt: 'desc' },
+      })
+
+      return dbNodes.map(n => ({
+        id: n.id,
+        name: n.name,
+        url: n.url,
+        description: n.description || undefined,
+        providedBy: n.providedBy,
+        contactInfo: n.contactInfo || undefined,
+        nodeType: n.nodeType as VolunteerNode['nodeType'],
+        status: n.status as VolunteerNode['status'],
+        lastHeartbeat: n.lastHeartbeat ? new Date(n.lastHeartbeat).getTime() : null,
+        uptime: n.uptime,
+        region: n.region || undefined,
+        capabilities: n.capabilities ? JSON.parse(n.capabilities) : [],
+        registeredAt: new Date(n.registeredAt).getTime(),
+      }))
+    } catch {
+      // 数据库查询失败，返回缓存
+      return Array.from(this.nodesCache.values())
+    }
+  }
+
+  /**
    * 获取所有活跃节点
    */
-  getActiveNodes(): VolunteerNode[] {
-    // 从健康检查结果中筛选在线节点
-    const activeNodes: VolunteerNode[] = []
-    for (const [nodeId, health] of this.healthResults) {
-      if (health.online) {
-        activeNodes.push({
-          id: nodeId,
-          name: '',
-          url: '',
-          providedBy: '',
-          nodeType: 'full',
-          status: 'active',
-          lastHeartbeat: health.timestamp,
-          uptime: 0,
-          registeredAt: 0,
-        })
-      }
-    }
-    return activeNodes
+  async getActiveNodes(): Promise<VolunteerNode[]> {
+    const allNodes = await this.getAllNodes()
+    return allNodes.filter(n => n.status === 'active')
   }
 
   /**
    * 获取最优节点 — 响应最快、负载最低
    */
-  getBestNode(): VolunteerNode | null {
-    const activeNodes = this.getActiveNodes()
+  async getBestNode(): Promise<VolunteerNode | null> {
+    const activeNodes = await this.getActiveNodes()
     if (activeNodes.length === 0) return null
 
-    // 按响应时间排序，选最快的
     let best = activeNodes[0]
     let bestTime = Infinity
 
@@ -173,6 +208,20 @@ class VolunteerNodeManager {
     }
 
     return best
+  }
+
+  /**
+   * 移除节点
+   */
+  async removeNode(nodeId: string): Promise<boolean> {
+    try {
+      await db.volunteerNode.delete({ where: { id: nodeId } })
+      this.nodesCache.delete(nodeId)
+      this.healthResults.delete(nodeId)
+      return true
+    } catch {
+      return false
+    }
   }
 
   /**
@@ -206,9 +255,28 @@ class VolunteerNodeManager {
    * 执行一轮健康检查
    */
   private async runHealthChecks(): Promise<void> {
-    // 对所有已知节点做健康检查
-    for (const [nodeId, _] of this.healthResults) {
-      // TODO: 从持久化存储读取节点URL
+    const nodes = await this.getAllNodes()
+
+    for (const node of nodes) {
+      const health = await this.checkNodeHealth(node.url)
+      health.nodeId = node.id
+      this.healthResults.set(node.id, health)
+
+      // 更新数据库状态
+      const newStatus = health.online ? 'active' : 'offline'
+      if (node.status !== newStatus) {
+        try {
+          await db.volunteerNode.update({
+            where: { id: node.id },
+            data: {
+              status: newStatus,
+              lastHeartbeat: health.online ? new Date() : undefined,
+            },
+          })
+        } catch {
+          // 更新失败不影响健康检查
+        }
+      }
     }
   }
 
@@ -218,6 +286,7 @@ class VolunteerNodeManager {
   destroy(): void {
     this.stopHealthCheck()
     this.healthResults.clear()
+    this.nodesCache.clear()
   }
 }
 

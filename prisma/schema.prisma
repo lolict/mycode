@@ -238,6 +238,57 @@ model ErrorLog {
   createdAt   DateTime @default(now())
 }
 
+// 志愿者节点 - 别人出服务器，我们出软件
+model VolunteerNode {
+  id            String   @id @default(cuid())
+  name          String   // 节点名称
+  url           String   // 服务器地址
+  description   String?  // 节点描述
+  providedBy    String   // 志愿者名称
+  contactInfo   String?  // 联系方式
+  nodeType      String   @default("full")  // api/relay/compute/storage/full
+  status        String   @default("pending")  // pending/active/offline/rejected
+  lastHeartbeat DateTime? // 最后心跳时间
+  uptime        Float    @default(0)  // 在线率百分比
+  region        String?  // 节点所在地区
+  capabilities  String?  // JSON格式能力列表
+  registeredAt  DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+}
+
+// 云端同步配置 - 持久化到数据库而不是内存
+model CloudSyncConfig {
+  id          String   @id @default(cuid())
+  configKey   String   @unique  // 配置键名（如 github-token, webdav-url 等）
+  configValue String   // 配置值（敏感信息加密存储）
+  isActive    Boolean  @default(true)
+  updatedAt   DateTime @updatedAt
+}
+
+// 同步数据版本 - 用于冲突解决
+model SyncVersion {
+  id          String   @id @default(cuid())
+  dataKey     String   @unique  // 数据键名
+  version     Int      @default(1)  // 版本号
+  lastSyncAt  DateTime @default(now())
+  checksum    String?  // 数据校验和
+  source      String?  // 数据来源（github/webdav/local）
+}
+
+// 设备身份 - 本地优先身份系统
+model DeviceIdentity {
+  id          String   @id @default(cuid())
+  deviceId    String   @unique  // 设备唯一标识
+  name        String?  // 用户昵称
+  avatar      String?  // 头像
+  userType    String   @default("disabled")  // disabled/able-bodied
+  bio         String?  // 个人简介
+  location    String?  // 所在地
+  isVerified  Boolean  @default(false)  // 是否已验证
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+}
+
 // 多巴胺记录 - 做善事后分泌的奖励
 model DopamineRecord {
   id              String   @id @default(cuid())

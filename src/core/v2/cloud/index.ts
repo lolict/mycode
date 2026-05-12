@@ -1,5 +1,5 @@
 /**
- * 云端同步系统 - Cloud Sync System
+ * 云端同步系统 - Cloud Sync System (v2 增强版)
  *
  * 没有服务器？没问题！我们有多条"电线"可以拉：
  *
@@ -24,11 +24,14 @@
  *    用途：即时通信、设备间同步
  *
  * 架构策略：
- * - 写数据 → GitHub主存 + WebDAV备份
+ * - 写数据 → 本地SQLite立即 → GitHub主存 + WebDAV备份
  * - 读数据 → 本地缓存 → GitHub → WebDAV → 志愿者节点
  * - 实时通信 → P2P直连 → 志愿者节点中转
  * - 离线可用 → 本地SQLite优先
+ * - 冲突解决 → 版本号 + 最后写入胜出
  */
+
+import { db } from '@/lib/db'
 
 // ============================================
 // 统一接口定义
@@ -54,28 +57,24 @@ export interface CloudSyncConfig {
   }
   /** WebDAV配置 */
   webdav?: {
-    url: string      // 例如 https://dav.jianguoyun.com/dav/
+    url: string
     username: string
-    password: string  // 坚果云用应用专用密码
-    dataPath: string  // 例如 /yuanju-data/
+    password: string
+    dataPath: string
   }
   /** 志愿者节点列表 */
   volunteerNodes?: Array<{
     name: string
-    url: string       // 例如 https://volunteer1.example.com
+    url: string
     status: 'active' | 'offline' | 'unknown'
     lastPing?: number
-    providedBy: string  // 志愿者名称
+    providedBy: string
   }>
   /** 同步策略 */
   syncStrategy?: {
-    /** 主通道（默认 github） */
     primary: 'github' | 'gitee' | 'webdav' | 'volunteer'
-    /** 备份通道 */
     backup: ('github' | 'gitee' | 'webdav')[]
-    /** 同步间隔（毫秒，默认30000=30秒） */
     syncInterval: number
-    /** 冲突解决策略 */
     conflictResolution: 'last-write-wins' | 'manual'
   }
 }
@@ -86,6 +85,7 @@ export interface SyncResult {
   data?: any
   error?: string
   timestamp: number
+  version?: number
 }
 
 export interface SyncStatus {
@@ -102,6 +102,16 @@ export interface SyncStatus {
   }>
   pendingChanges: number
   isSyncing: boolean
+  totalSynced: number
+  lastFullSync: number | null
+}
+
+export interface DataEntry {
+  key: string
+  data: any
+  version: number
+  updatedAt: number
+  source: string
 }
 
 // ============================================
@@ -112,7 +122,12 @@ class CloudSyncManager {
   private config: CloudSyncConfig | null = null
   private syncIntervalId: NodeJS.Timeout | null = null
   private pendingWrites: Map<string, any> = new Map()
-  private localCache: Map<string, { data: any; timestamp: number }> = new Map()
+  private localCache: Map<string, { data: any; timestamp: number; version: number }> = new Map()
+  private lastSyncTimes: Map<string, number> = new Map()
+  private isSyncing = false
+  private totalSynced = 0
+  private lastFullSync: number | null = null
+  private connectionStatus: Map<string, boolean> = new Map()
 
   /**
    * 初始化配置
@@ -129,6 +144,9 @@ class CloudSyncManager {
     this.syncIntervalId = setInterval(() => {
       this.sync()
     }, interval)
+
+    // 立即检测连接
+    this.detectConnections()
   }
 
   /**
@@ -139,17 +157,175 @@ class CloudSyncManager {
   }
 
   /**
+   * 检测各通道连接状态
+   */
+  async detectConnections(): Promise<void> {
+    if (!this.config) return
+
+    // 检测 GitHub 连接
+    if (this.config.github?.token) {
+      try {
+        const res = await fetch('https://api.github.com/user', {
+          headers: {
+            Authorization: `token ${this.config.github.token}`,
+            Accept: 'application/vnd.github.v3+json',
+          },
+          signal: AbortSignal.timeout(5000),
+        })
+        this.connectionStatus.set('github', res.ok)
+      } catch {
+        this.connectionStatus.set('github', false)
+      }
+    }
+
+    // 检测 Gitee 连接
+    if (this.config.gitee?.token) {
+      try {
+        const res = await fetch('https://gitee.com/api/v5/user', {
+          headers: {
+            Authorization: `token ${this.config.gitee.token}`,
+          },
+          signal: AbortSignal.timeout(5000),
+        })
+        this.connectionStatus.set('gitee', res.ok)
+      } catch {
+        this.connectionStatus.set('gitee', false)
+      }
+    }
+
+    // 检测 WebDAV 连接
+    if (this.config.webdav?.url) {
+      try {
+        const credentials = Buffer.from(
+          `${this.config.webdav.username}:${this.config.webdav.password}`
+        ).toString('base64')
+        const res = await fetch(this.config.webdav.url, {
+          method: 'PROPFIND',
+          headers: {
+            Authorization: `Basic ${credentials}`,
+            Depth: '0',
+          },
+          signal: AbortSignal.timeout(5000),
+        })
+        this.connectionStatus.set('webdav', res.ok || res.status === 207)
+      } catch {
+        this.connectionStatus.set('webdav', false)
+      }
+    }
+  }
+
+  /**
+   * 测试指定通道的连接
+   */
+  async testConnection(channel: 'github' | 'gitee' | 'webdav'): Promise<{ ok: boolean; error?: string; info?: any }> {
+    if (!this.config) return { ok: false, error: '未配置' }
+
+    switch (channel) {
+      case 'github': {
+        if (!this.config.github) return { ok: false, error: 'GitHub 未配置' }
+        try {
+          const res = await fetch('https://api.github.com/user', {
+            headers: {
+              Authorization: `token ${this.config.github.token}`,
+              Accept: 'application/vnd.github.v3+json',
+            },
+            signal: AbortSignal.timeout(10000),
+          })
+          if (res.ok) {
+            const user = await res.json()
+            this.connectionStatus.set('github', true)
+            return { ok: true, info: { login: user.login, name: user.name } }
+          }
+          this.connectionStatus.set('github', false)
+          return { ok: false, error: `认证失败: HTTP ${res.status}` }
+        } catch (e: any) {
+          this.connectionStatus.set('github', false)
+          return { ok: false, error: e.message }
+        }
+      }
+
+      case 'gitee': {
+        if (!this.config.gitee) return { ok: false, error: 'Gitee 未配置' }
+        try {
+          const res = await fetch('https://gitee.com/api/v5/user', {
+            headers: {
+              Authorization: `token ${this.config.gitee.token}`,
+            },
+            signal: AbortSignal.timeout(10000),
+          })
+          if (res.ok) {
+            const user = await res.json()
+            this.connectionStatus.set('gitee', true)
+            return { ok: true, info: { login: user.login, name: user.name } }
+          }
+          this.connectionStatus.set('gitee', false)
+          return { ok: false, error: `认证失败: HTTP ${res.status}` }
+        } catch (e: any) {
+          this.connectionStatus.set('gitee', false)
+          return { ok: false, error: e.message }
+        }
+      }
+
+      case 'webdav': {
+        if (!this.config.webdav) return { ok: false, error: 'WebDAV 未配置' }
+        try {
+          const credentials = Buffer.from(
+            `${this.config.webdav.username}:${this.config.webdav.password}`
+          ).toString('base64')
+          const res = await fetch(this.config.webdav.url, {
+            method: 'PROPFIND',
+            headers: {
+              Authorization: `Basic ${credentials}`,
+              Depth: '0',
+            },
+            signal: AbortSignal.timeout(10000),
+          })
+          const ok = res.ok || res.status === 207
+          this.connectionStatus.set('webdav', ok)
+          return ok
+            ? { ok: true, info: { url: this.config.webdav.url } }
+            : { ok: false, error: `连接失败: HTTP ${res.status}` }
+        } catch (e: any) {
+          this.connectionStatus.set('webdav', false)
+          return { ok: false, error: e.message }
+        }
+      }
+
+      default:
+        return { ok: false, error: '未知通道' }
+    }
+  }
+
+  /**
    * 写入数据 — 先写本地，再异步同步到云端
    * 就像先在草稿纸上写，再抄到正式本上
    */
   async write(key: string, data: any): Promise<void> {
-    // 1. 写入本地缓存（立即生效）
-    this.localCache.set(key, { data, timestamp: Date.now() })
+    // 1. 获取当前版本
+    let version = 1
+    const cached = this.localCache.get(key)
+    if (cached) {
+      version = cached.version + 1
+    } else {
+      // 从数据库查版本
+      const syncVer = await db.syncVersion.findUnique({ where: { dataKey: key } })
+      if (syncVer) version = syncVer.version + 1
+    }
 
-    // 2. 加入待同步队列
+    // 2. 写入本地缓存（立即生效）
+    this.localCache.set(key, { data, timestamp: Date.now(), version })
+
+    // 3. 加入待同步队列
     this.pendingWrites.set(key, data)
 
-    // 3. 异步同步到云端
+    // 4. 更新数据库版本
+    await db.syncVersion.upsert({
+      where: { dataKey: key },
+      create: { dataKey: key, version, checksum: this.checksum(data), source: 'local' },
+      update: { version, lastSyncAt: new Date(), checksum: this.checksum(data), source: 'local' },
+    })
+
+    // 5. 异步同步到云端
     this.syncKey(key, data).catch(() => {
       // 同步失败不影响本地使用，等下次重试
     })
@@ -168,6 +344,7 @@ class CloudSyncManager {
         source: 'local-cache',
         data: cached.data,
         timestamp: cached.timestamp,
+        version: cached.version,
       }
     }
 
@@ -176,8 +353,34 @@ class CloudSyncManager {
       const primary = this.config.syncStrategy?.primary || 'github'
       const result = await this.readFromChannel(key, primary)
       if (result.success) {
-        this.localCache.set(key, { data: result.data, timestamp: Date.now() })
-        return result
+        // 检查版本冲突
+        const localVersion = await db.syncVersion.findUnique({ where: { dataKey: key } })
+        const cloudVersion = result.version || 0
+
+        if (localVersion && localVersion.version > cloudVersion) {
+          // 本地版本更新，用本地的
+          if (cached) {
+            return {
+              success: true,
+              source: 'local-cache-stale',
+              data: cached.data,
+              timestamp: cached.timestamp,
+              version: localVersion.version,
+            }
+          }
+        }
+
+        // 云端版本更新或没有本地版本，用云端的
+        this.localCache.set(key, { data: result.data, timestamp: Date.now(), version: cloudVersion })
+
+        // 更新本地版本记录
+        await db.syncVersion.upsert({
+          where: { dataKey: key },
+          create: { dataKey: key, version: cloudVersion, checksum: this.checksum(result.data), source: primary },
+          update: { version: cloudVersion, lastSyncAt: new Date(), checksum: this.checksum(result.data), source: primary },
+        })
+
+        return { ...result, version: cloudVersion }
       }
 
       // 3. 主通道失败，查备份通道
@@ -185,7 +388,7 @@ class CloudSyncManager {
       for (const backup of backups) {
         const backupResult = await this.readFromChannel(key, backup)
         if (backupResult.success) {
-          this.localCache.set(key, { data: backupResult.data, timestamp: Date.now() })
+          this.localCache.set(key, { data: backupResult.data, timestamp: Date.now(), version: backupResult.version || 0 })
           return backupResult
         }
       }
@@ -202,6 +405,7 @@ class CloudSyncManager {
         source: 'local-cache-stale',
         data: cached.data,
         timestamp: cached.timestamp,
+        version: cached.version,
       }
     }
 
@@ -214,47 +418,196 @@ class CloudSyncManager {
   }
 
   /**
+   * 列出所有已同步的数据键
+   */
+  async listKeys(): Promise<DataEntry[]> {
+    const versions = await db.syncVersion.findMany({
+      orderBy: { lastSyncAt: 'desc' },
+    })
+
+    return versions.map(v => ({
+      key: v.dataKey,
+      data: this.localCache.get(v.dataKey)?.data || null,
+      version: v.version,
+      updatedAt: new Date(v.lastSyncAt).getTime(),
+      source: v.source || 'unknown',
+    }))
+  }
+
+  /**
    * 手动触发全量同步
    */
   async sync(): Promise<{ pushed: number; pulled: number; errors: string[] }> {
+    if (this.isSyncing) {
+      return { pushed: 0, pulled: 0, errors: ['正在同步中，请稍后再试'] }
+    }
+
+    this.isSyncing = true
     const errors: string[] = []
     let pushed = 0
     let pulled = 0
 
-    // 推送待写入的数据
-    for (const [key, data] of this.pendingWrites) {
-      try {
-        await this.syncKey(key, data)
-        pushed++
-      } catch (e: any) {
-        errors.push(`推送 ${key} 失败: ${e.message}`)
+    try {
+      // 推送待写入的数据
+      for (const [key, data] of this.pendingWrites) {
+        try {
+          await this.syncKey(key, data)
+          pushed++
+        } catch (e: any) {
+          errors.push(`推送 ${key} 失败: ${e.message}`)
+        }
       }
+
+      // 增量拉取远端更新
+      if (this.config) {
+        const primary = this.config.syncStrategy?.primary || 'github'
+        pulled = await this.pullFromChannel(primary)
+
+        // 也从备份通道拉取
+        const backups = this.config.syncStrategy?.backup || []
+        for (const backup of backups) {
+          pulled += await this.pullFromChannel(backup)
+        }
+      }
+
+      this.totalSynced += pushed + pulled
+      this.lastFullSync = Date.now()
+    } finally {
+      this.isSyncing = false
     }
 
-    // 拉取远端更新
-    // TODO: 实现增量拉取
-
     return { pushed, pulled, errors }
+  }
+
+  /**
+   * 从指定通道增量拉取
+   */
+  private async pullFromChannel(channel: string): Promise<number> {
+    try {
+      // 从云端读取索引文件（记录所有数据键和版本）
+      const indexResult = await this.readFromChannel('__index__', channel)
+      if (!indexResult.success) return 0
+
+      const cloudIndex = indexResult.data as Record<string, { version: number; updatedAt: number }>
+      if (!cloudIndex) return 0
+
+      let pulled = 0
+      for (const [key, meta] of Object.entries(cloudIndex)) {
+        // 跳过索引文件自身
+        if (key === '__index__') continue
+
+        // 检查本地版本
+        const localVersion = await db.syncVersion.findUnique({ where: { dataKey: key } })
+        if (!localVersion || localVersion.version < meta.version) {
+          // 云端更新，拉取
+          const result = await this.readFromChannel(key, channel)
+          if (result.success) {
+            this.localCache.set(key, {
+              data: result.data,
+              timestamp: Date.now(),
+              version: meta.version,
+            })
+
+            await db.syncVersion.upsert({
+              where: { dataKey: key },
+              create: { dataKey: key, version: meta.version, checksum: this.checksum(result.data), source: channel },
+              update: { version: meta.version, lastSyncAt: new Date(), checksum: this.checksum(result.data), source: channel },
+            })
+
+            pulled++
+          }
+        }
+      }
+
+      return pulled
+    } catch {
+      return 0
+    }
   }
 
   /**
    * 获取同步状态
    */
   getStatus(): SyncStatus {
+    const primary = this.config?.syncStrategy?.primary || 'none'
+    const primaryConnected = this.connectionStatus.get(primary) ?? false
+
     return {
       primary: {
-        type: this.config?.syncStrategy?.primary || 'none',
-        connected: false, // TODO: 实际检测
-        lastSync: null,
+        type: primary,
+        connected: primaryConnected,
+        lastSync: this.lastSyncTimes.get(primary) || null,
       },
       backup: (this.config?.syncStrategy?.backup || []).map(type => ({
         type,
-        connected: false,
-        lastSync: null,
+        connected: this.connectionStatus.get(type) ?? false,
+        lastSync: this.lastSyncTimes.get(type) || null,
       })),
       pendingChanges: this.pendingWrites.size,
-      isSyncing: false,
+      isSyncing: this.isSyncing,
+      totalSynced: this.totalSynced,
+      lastFullSync: this.lastFullSync,
     }
+  }
+
+  /**
+   * 持久化配置到数据库
+   */
+  async persistConfig(): Promise<void> {
+    if (!this.config) return
+
+    const configs: Array<{ key: string; value: string }> = []
+
+    if (this.config.github) {
+      configs.push({ key: 'github', value: JSON.stringify(this.config.github) })
+    }
+    if (this.config.gitee) {
+      configs.push({ key: 'gitee', value: JSON.stringify(this.config.gitee) })
+    }
+    if (this.config.webdav) {
+      configs.push({ key: 'webdav', value: JSON.stringify(this.config.webdav) })
+    }
+    if (this.config.syncStrategy) {
+      configs.push({ key: 'syncStrategy', value: JSON.stringify(this.config.syncStrategy) })
+    }
+
+    for (const c of configs) {
+      await db.cloudSyncConfig.upsert({
+        where: { configKey: c.key },
+        create: { configKey: c.key, configValue: c.value },
+        update: { configValue: c.value },
+      })
+    }
+  }
+
+  /**
+   * 从数据库加载配置
+   */
+  async loadConfig(): Promise<CloudSyncConfig | null> {
+    const configs = await db.cloudSyncConfig.findMany({ where: { isActive: true } })
+    if (configs.length === 0) return null
+
+    const result: CloudSyncConfig = {}
+    for (const c of configs) {
+      try {
+        const parsed = JSON.parse(c.configValue)
+        switch (c.configKey) {
+          case 'github': result.github = parsed; break
+          case 'gitee': result.gitee = parsed; break
+          case 'webdav': result.webdav = parsed; break
+          case 'syncStrategy': result.syncStrategy = parsed; break
+        }
+      } catch {
+        // 配置格式错误，跳过
+      }
+    }
+
+    if (Object.keys(result).length > 0) {
+      this.config = result
+      return result
+    }
+
+    return null
   }
 
   // ============================================
@@ -271,6 +624,8 @@ class CloudSyncManager {
     try {
       await this.writeToChannel(key, data, primary)
       this.pendingWrites.delete(key)
+      this.lastSyncTimes.set(primary, Date.now())
+      this.totalSynced++
     } catch {
       // 主通道失败，尝试备份
     }
@@ -279,9 +634,43 @@ class CloudSyncManager {
     for (const backup of backups) {
       try {
         await this.writeToChannel(key, data, backup)
+        this.lastSyncTimes.set(backup, Date.now())
       } catch {
         // 备份失败不影响
       }
+    }
+
+    // 更新云端索引
+    await this.updateCloudIndex(key)
+  }
+
+  /**
+   * 更新云端索引 — 记录所有数据键和版本
+   */
+  private async updateCloudIndex(updatedKey: string): Promise<void> {
+    if (!this.config) return
+
+    const primary = this.config.syncStrategy?.primary || 'github'
+
+    // 读取现有索引
+    let index: Record<string, { version: number; updatedAt: number }> = {}
+    const indexResult = await this.readFromChannel('__index__', primary)
+    if (indexResult.success && indexResult.data) {
+      index = indexResult.data
+    }
+
+    // 更新索引条目
+    const version = await db.syncVersion.findUnique({ where: { dataKey: updatedKey } })
+    index[updatedKey] = {
+      version: version?.version || 1,
+      updatedAt: Date.now(),
+    }
+
+    // 写回索引
+    try {
+      await this.writeToChannel('__index__', index, primary)
+    } catch {
+      // 索引更新失败不影响数据同步
     }
   }
 
@@ -314,10 +703,6 @@ class CloudSyncManager {
 
   /**
    * GitHub/Gitee 读写 — 仓库即数据库
-   *
-   * 原理：把JSON数据存到仓库的 data/ 目录下
-   * - 读取：GET /repos/{owner}/{repo}/contents/data/{key}.json
-   * - 写入：PUT /repos/{owner}/{repo}/contents/data/{key}.json
    */
   private async writeToGitHub(key: string, data: any, platform: 'github' | 'gitee'): Promise<void> {
     const config = platform === 'github' ? this.config!.github : this.config!.gitee
@@ -328,7 +713,16 @@ class CloudSyncManager {
       : 'https://gitee.com/api/v5'
 
     const path = `${config.dataPath}${key}.json`
-    const content = Buffer.from(JSON.stringify(data, null, 2)).toString('base64')
+    // 包含版本和元数据
+    const fullData = {
+      _meta: {
+        version: (await db.syncVersion.findUnique({ where: { dataKey: key } }))?.version || 1,
+        updatedAt: Date.now(),
+        source: 'yuanju-cloud-sync',
+      },
+      data,
+    }
+    const content = Buffer.from(JSON.stringify(fullData, null, 2)).toString('base64')
 
     // 先获取当前文件的SHA（如果存在）
     let sha: string | undefined
@@ -396,13 +790,18 @@ class CloudSyncManager {
       }
 
       const fileInfo = await res.json()
-      const content = JSON.parse(Buffer.from(fileInfo.content, 'base64').toString('utf-8'))
+      const parsed = JSON.parse(Buffer.from(fileInfo.content, 'base64').toString('utf-8'))
+
+      // 兼容：有 _meta 包裹和没有 _meta 包裹两种格式
+      const version = parsed._meta?.version || 0
+      const data = parsed._meta ? parsed.data : parsed
 
       return {
         success: true,
         source: platform,
-        data: content,
+        data,
         timestamp: Date.now(),
+        version,
       }
     } catch (error: any) {
       return { success: false, source: platform, error: error.message, timestamp: Date.now() }
@@ -411,16 +810,6 @@ class CloudSyncManager {
 
   /**
    * WebDAV 读写 — 网盘即服务器
-   *
-   * 坚果云 WebDAV：
-   * - 地址：https://dav.jianguoyun.com/dav/
-   * - 用户名：坚果云账号
-   * - 密码：应用专用密码（在坚果云安全设置中生成）
-   *
-   * 其他支持 WebDAV 的网盘：
-   * - Koofr: https://app.koofr.net/dav/
-   * - Nextcloud: 各实例不同
-   * - Box.com: https://dav.box.com/dav/
    */
   private async writeToWebDAV(key: string, data: any): Promise<void> {
     const config = this.config!.webdav
@@ -429,13 +818,22 @@ class CloudSyncManager {
     const url = `${config.url}${config.dataPath}${key}.json`
     const credentials = Buffer.from(`${config.username}:${config.password}`).toString('base64')
 
+    const fullData = {
+      _meta: {
+        version: (await db.syncVersion.findUnique({ where: { dataKey: key } }))?.version || 1,
+        updatedAt: Date.now(),
+        source: 'yuanju-cloud-sync',
+      },
+      data,
+    }
+
     const res = await fetch(url, {
       method: 'PUT',
       headers: {
         Authorization: `Basic ${credentials}`,
         'Content-Type': 'application/json',
       },
-      body: JSON.stringify(data, null, 2),
+      body: JSON.stringify(fullData, null, 2),
     })
 
     if (!res.ok) {
@@ -464,8 +862,11 @@ class CloudSyncManager {
         return { success: false, source: 'webdav', error: `HTTP ${res.status}`, timestamp: Date.now() }
       }
 
-      const data = await res.json()
-      return { success: true, source: 'webdav', data, timestamp: Date.now() }
+      const parsed = await res.json()
+      const version = parsed._meta?.version || 0
+      const data = parsed._meta ? parsed.data : parsed
+
+      return { success: true, source: 'webdav', data, timestamp: Date.now(), version }
     } catch (error: any) {
       return { success: false, source: 'webdav', error: error.message, timestamp: Date.now() }
     }
@@ -478,7 +879,6 @@ class CloudSyncManager {
     const nodes = this.config?.volunteerNodes || []
     const activeNodes = nodes.filter(n => n.status === 'active')
 
-    // 并行请求所有活跃节点，谁先返回用谁
     const results = await Promise.allSettled(
       activeNodes.map(async (node) => {
         const res = await fetch(`${node.url}/api/cloud/data/${key}`, {
@@ -501,6 +901,20 @@ class CloudSyncManager {
     }
 
     return { success: false, source: 'volunteer', error: '所有节点不可用', timestamp: Date.now() }
+  }
+
+  /**
+   * 计算数据校验和（简易版）
+   */
+  private checksum(data: any): string {
+    const str = JSON.stringify(data)
+    let hash = 0
+    for (let i = 0; i < str.length; i++) {
+      const char = str.charCodeAt(i)
+      hash = ((hash << 5) - hash) + char
+      hash = hash & hash // 转为32位整数
+    }
+    return Math.abs(hash).toString(36)
   }
 
   /**

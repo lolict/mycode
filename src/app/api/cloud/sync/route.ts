@@ -2,23 +2,29 @@ import { NextRequest, NextResponse } from 'next/server'
 import { getCloudSync, type CloudSyncConfig } from '@/core/v2/cloud'
 
 /**
- * 云端同步配置 API
+ * 云端同步配置 API (增强版)
  *
  * POST /api/cloud/sync — 保存配置
  * GET  /api/cloud/sync — 获取当前配置和状态
  * POST /api/cloud/sync?action=sync — 手动触发同步
  * POST /api/cloud/sync?action=write — 写入数据
  * GET  /api/cloud/sync?key=xxx — 读取数据
+ * POST /api/cloud/sync?action=test — 测试连接
+ * GET  /api/cloud/sync?action=list — 列出所有数据键
  */
-
-// 内存中的配置（生产环境应持久化到数据库）
-let savedConfig: CloudSyncConfig | null = null
 
 export async function GET(request: NextRequest) {
   const { searchParams } = new URL(request.url)
   const key = searchParams.get('key')
+  const action = searchParams.get('action')
 
   const cloud = getCloudSync()
+
+  // 列出所有数据键
+  if (action === 'list') {
+    const keys = await cloud.listKeys()
+    return NextResponse.json({ keys })
+  }
 
   // 如果有 key 参数，读取数据
   if (key) {
@@ -33,7 +39,6 @@ export async function GET(request: NextRequest) {
   return NextResponse.json({
     configured: !!config,
     status,
-    // 脱敏：不返回token等敏感信息
     configInfo: config ? {
       primary: config.syncStrategy?.primary || 'none',
       hasGithub: !!config.github?.token,
@@ -48,6 +53,14 @@ export async function POST(request: NextRequest) {
   const { searchParams } = new URL(request.url)
   const action = searchParams.get('action')
   const cloud = getCloudSync()
+
+  // 测试连接
+  if (action === 'test') {
+    const body = await request.json()
+    const { channel } = body as { channel: 'github' | 'gitee' | 'webdav' }
+    const result = await cloud.testConnection(channel)
+    return NextResponse.json(result)
+  }
 
   // 手动触发同步
   if (action === 'sync') {
@@ -91,11 +104,17 @@ export async function POST(request: NextRequest) {
   }
 
   cloud.configure(body)
-  savedConfig = body
+
+  // 持久化配置到数据库
+  try {
+    await cloud.persistConfig()
+  } catch (err) {
+    console.error('配置持久化失败:', err)
+  }
 
   return NextResponse.json({
     success: true,
-    message: '云端同步配置已保存',
+    message: '云端同步配置已保存，并持久化到本地数据库',
     primary: body.syncStrategy.primary,
   })
 }
