@@ -7,9 +7,9 @@ import { Badge } from '@/components/ui/badge'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { Textarea } from '@/components/ui/textarea'
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
+import { Select } from '@/components/ui/select'
 import { useModuleRegistry } from './ModuleRegistry'
-import { DragDropContext, Droppable, Draggable } from 'react-beautiful-dnd'
+import { DragDropContext, Droppable, Draggable } from '@hello-pangea/dnd'
 import { Plus, Trash2, Settings, Play, Save, Eye } from 'lucide-react'
 
 interface AppTemplate {
@@ -164,16 +164,16 @@ export function AppBuilder({ onSave, onPreview }: AppBuilderProps) {
                 
                 <div>
                   <Label htmlFor="layout">布局模式</Label>
-                  <Select value={template.layout} onValueChange={(value: any) => setTemplate(prev => ({ ...prev, layout: value }))}>
-                    <SelectTrigger>
-                      <SelectValue />
-                    </SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="tabs">标签页布局</SelectItem>
-                      <SelectItem value="grid">网格布局</SelectItem>
-                      <SelectItem value="flex">弹性布局</SelectItem>
-                    </SelectContent>
-                  </Select>
+                  <select
+                    id="layout"
+                    value={template.layout}
+                    onChange={(e) => setTemplate(prev => ({ ...prev, layout: e.target.value as any }))}
+                    className="w-full h-10 rounded-md border border-input bg-background px-3 py-2 text-sm"
+                  >
+                    <option value="tabs">标签页布局</option>
+                    <option value="grid">网格布局</option>
+                    <option value="flex">弹性布局</option>
+                  </select>
                 </div>
 
                 <div className="flex gap-2">
@@ -273,8 +273,8 @@ export function AppBuilder({ onSave, onPreview }: AppBuilderProps) {
                           className="space-y-2"
                         >
                           {template.modules.map((moduleId, index) => {
-                            const module = getModuleById(moduleId)
-                            if (!module) return null
+                            const mod = getModuleById(moduleId)
+                            if (!mod) return null
 
                             return (
                               <Draggable key={moduleId} draggableId={moduleId} index={index}>
@@ -289,8 +289,8 @@ export function AppBuilder({ onSave, onPreview }: AppBuilderProps) {
                                   >
                                     <div className="flex items-center justify-between">
                                       <div className="flex-1">
-                                        <div className="font-medium">{module.name}</div>
-                                        <div className="text-sm text-gray-600">{module.description}</div>
+                                        <div className="font-medium">{mod.name}</div>
+                                        <div className="text-sm text-gray-600">{mod.description}</div>
                                       </div>
                                       <Button
                                         size="sm"

@@ -8,15 +8,21 @@ datasource db {
 }
 
 model User {
-  id            String   @id @default(cuid())
-  email         String   @unique
-  name          String?
-  avatar        String?
-  phone         String?
-  createdAt     DateTime @default(now())
-  updatedAt     DateTime @updatedAt
-  createdProjects Project[]
-  donations     Donation[]
+  id               String   @id @default(cuid())
+  email            String   @unique
+  name             String?
+  avatar           String?
+  phone            String?
+  userType         String   @default("disabled")  // disabled=残疾人, able-bodied=健全人
+  communityBalance Float    @default(0)            // 共同体账户余额
+  investmentPoints Float    @default(0)            // 投资点数
+  createdAt        DateTime @default(now())
+  updatedAt        DateTime @updatedAt
+  createdProjects  Project[]
+  donations        Donation[]
+  namedLedgers     NamedLedger[]
+  comments         Comment[]
+  communityAccounts CommunityAccount[]
 }
 
 model Category {
@@ -49,6 +55,8 @@ model Project {
   category    Category? @relation(fields: [categoryId], references: [id])
   donations   Donation[]
   donorCount  Int      @default(0)
+  comments    Comment[]
+  documents   ProjectDocument[]
 }
 
 model Donation {
@@ -62,6 +70,250 @@ model Donation {
   donorId   String
   donor     User     @relation(fields: [donorId], references: [id])
 }
+
+// ============================================
+// 评论系统
+// ============================================
+
+model Comment {
+  id        String   @id @default(cuid())
+  content   String
+  createdAt DateTime @default(now())
+  projectId String
+  project   Project  @relation(fields: [projectId], references: [id])
+  authorId  String
+  author    User     @relation(fields: [authorId], references: [id])
+}
+
+// ============================================
+// 项目文档系统
+// ============================================
+
+model ProjectDocument {
+  id        String   @id @default(cuid())
+  docType   String   // 文档类型
+  content   String?  // 文档内容
+  isPublic  Boolean  @default(false)
+  createdAt DateTime @default(now())
+  projectId String
+  project   Project  @relation(fields: [projectId], references: [id])
+}
+
+// ============================================
+// 记名账本系统 - Named Ledger
+// ============================================
+// 账本类型：technology/technique/public_tool/intelligence/energy/charity/donation/volunteer/time/deposit/cooperation/dream/reality/medical
+
+model NamedLedger {
+  id          String   @id @default(cuid())
+  ledgerType  String   // 账本类型
+  content     String   // 内容描述
+  value       Float    @default(0)  // 价值评分
+  status      String   @default("pending")  // pending/confirmed/rejected
+  specialData String?  // JSON格式特殊数据
+  tags        String?  // JSON格式标签
+  privacy     String   @default("private")  // private/public
+  projectId   String?  // 关联项目ID
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+  userId      String
+  user        User     @relation(fields: [userId], references: [id])
+}
+
+// ============================================
+// 共同体账户系统 - Community Account
+// ============================================
+
+model CommunityAccount {
+  id             String   @id @default(cuid())
+  accountType    String   // balance=余额, investment=投资
+  amount         Float    @default(0)
+  reason         String?  // 变动原因
+  transactionType String  // credit=收入, debit=支出
+  createdAt      DateTime @default(now())
+  userId         String
+  user           User     @relation(fields: [userId], references: [id])
+}
+
+// ============================================
+// 创新创意归档分类系统 - Innovation Archive
+// ============================================
+
+model Idea {
+  id          String   @id @default(cuid())
+  title       String
+  content     String
+  summary     String?
+
+  // 分类向量特征
+  layer       String   @default("DRAFT")
+  maturity    String   @default("DRAFT")
+  domain      String?
+  subDomain   String?
+
+  // 向量化特征
+  featureVector String?
+  keywords    String?
+
+  // 优先级与紧急度
+  priority    Int      @default(5)
+  urgency     Int      @default(5)
+  effort      Int      @default(5)
+
+  // 依赖与被依赖
+  sourceRelations IdeaRelation[] @relation("SourceIdea")
+  targetRelations IdeaRelation[] @relation("TargetIdea")
+
+  // 标签
+  tagRelations  IdeaTagRelation[]
+
+  // 状态
+  isArchived  Boolean  @default(false)
+  isBlocked   Boolean  @default(false)
+  blockReason String?
+
+  // 时间
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  // 关联项目
+  projectId   String?
+}
+
+model IdeaRelation {
+  id           String   @id @default(cuid())
+  type         String
+
+  sourceIdeaId String
+  sourceIdea   Idea     @relation(fields: [sourceIdeaId], references: [id], name: "SourceIdea")
+  targetIdeaId String
+  targetIdea   Idea     @relation(fields: [targetIdeaId], references: [id], name: "TargetIdea")
+
+  strength     Float    @default(0.5)
+  description  String?
+  distance     Float?
+
+  createdAt    DateTime @default(now())
+}
+
+model IdeaTag {
+  id          String   @id @default(cuid())
+  name        String   @unique
+  category    String?
+  color       String?
+  description String?
+
+  ideas       IdeaTagRelation[]
+  createdAt   DateTime @default(now())
+}
+
+model IdeaTagRelation {
+  id        String   @id @default(cuid())
+  ideaId    String
+  idea      Idea     @relation(fields: [ideaId], references: [id])
+  tagId     String
+  tag       IdeaTag  @relation(fields: [tagId], references: [id])
+  weight    Float    @default(1.0)
+
+  createdAt DateTime @default(now())
+
+  @@unique([ideaId, tagId])
+}
+
+// ============================================
+// 活体架构系统 - Living Architecture
+// ============================================
+
+// 错误日志 - 消化系统的排泄物（肛门排出的记录）
+model ErrorLog {
+  id          String   @id @default(cuid())
+  grade       String   // noise=放屁, known=正常排便, critical=拉肚子
+  message     String   // 人类可读的错误描述（不暴露技术细节）
+  raw         String?  // 原始错误信息（仅开发环境可见）
+  source      String   // 发生源
+  handled     Boolean  @default(false)
+  suggestion  String?  // 恢复建议
+  userId      String?  // 关联用户
+  extra       String?  // JSON格式附加数据
+  createdAt   DateTime @default(now())
+}
+
+// 志愿者节点 - 别人出服务器，我们出软件
+model VolunteerNode {
+  id            String   @id @default(cuid())
+  name          String   // 节点名称
+  url           String   // 服务器地址
+  description   String?  // 节点描述
+  providedBy    String   // 志愿者名称
+  contactInfo   String?  // 联系方式
+  nodeType      String   @default("full")  // api/relay/compute/storage/full
+  status        String   @default("pending")  // pending/active/offline/rejected
+  lastHeartbeat DateTime? // 最后心跳时间
+  uptime        Float    @default(0)  // 在线率百分比
+  region        String?  // 节点所在地区
+  capabilities  String?  // JSON格式能力列表
+  registeredAt  DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+}
+
+// 云端同步配置 - 持久化到数据库而不是内存
+model CloudSyncConfig {
+  id          String   @id @default(cuid())
+  configKey   String   @unique  // 配置键名（如 github-token, webdav-url 等）
+  configValue String   // 配置值（敏感信息加密存储）
+  isActive    Boolean  @default(true)
+  updatedAt   DateTime @updatedAt
+}
+
+// 同步数据版本 - 用于冲突解决
+model SyncVersion {
+  id          String   @id @default(cuid())
+  dataKey     String   @unique  // 数据键名
+  version     Int      @default(1)  // 版本号
+  lastSyncAt  DateTime @default(now())
+  checksum    String?  // 数据校验和
+  source      String?  // 数据来源（github/webdav/local）
+}
+
+// 设备身份 - 本地优先身份系统
+model DeviceIdentity {
+  id          String   @id @default(cuid())
+  deviceId    String   @unique  // 设备唯一标识
+  name        String?  // 用户昵称
+  avatar      String?  // 头像
+  userType    String   @default("disabled")  // disabled/able-bodied
+  bio         String?  // 个人简介
+  location    String?  // 所在地
+  isVerified  Boolean  @default(false)  // 是否已验证
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+}
+
+// 多巴胺记录 - 做善事后分泌的奖励
+model DopamineRecord {
+  id              String   @id @default(cuid())
+  userId          String   // 行为主体
+  actionType      String   // donate/create_project/volunteer/help/share/comment/verify
+  actionDesc      String?  // 行为描述
+  targetId        String?  // 行为对象（项目ID等）
+
+  // 五维评分
+  kindness        Float    @default(0)    // 善良 30%
+  compassion      Float    @default(0)    // 恻隐 25%
+  justice         Float    @default(0)    // 正义 20%
+  dedication      Float    @default(0)    // 奉献 15%
+  severity        Float    @default(0)    // 严重度 10%（反向）
+  totalScore      Float    @default(0)    // 加权总分
+
+  dopamineValue   Float    @default(0)    // 多巴胺值 = 总分 * 行为权重
+  actionData      String?  // JSON格式行为数据
+
+  createdAt       DateTime @default(now())
+}
+
+// ============================================
+// 德系五十四模块系统 - Dexi 54 Modules
+// ============================================
 
 model DexiModule {
   id          String   @id @default(cuid())
@@ -91,38 +343,4 @@ model DexiRecord {
   status     String   @default("active")
   createdAt  DateTime @default(now())
   updatedAt  DateTime @updatedAt
-}
-
-model NamedLedger {
-  id          String   @id @default(cuid())
-  ledgerType  String
-  content     String
-  value       Float    @default(0)
-  status      String   @default("pending")
-  userId      String?
-  specialData String?  // JSON string
-  tags        String?  // JSON string
-  privacy     String   @default("private")
-  projectId   String?
-  createdAt   DateTime @default(now())
-  updatedAt   DateTime @updatedAt
-}
-
-model Comment {
-  id        String   @id @default(cuid())
-  content   String
-  projectId String
-  authorId  String
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
-}
-
-model ProjectDocument {
-  id        String   @id @default(cuid())
-  docType   String
-  content   String
-  isPublic  Boolean  @default(false)
-  projectId String
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
 }

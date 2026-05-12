@@ -1,5 +1,10 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { db } from '@/lib/db'
+import { getDigestiveSystem } from '@/core/v2/digestive'
+import { persistError } from '@/core/v2/digestive/persist'
+import { getDopamineEngine } from '@/core/v2/dopamine'
+import { persistDopamine } from '@/core/v2/dopamine/persist'
+import { getNervousSystem } from '@/core/v2/nervous'
 
 export async function GET(request: NextRequest) {
   try {
@@ -23,6 +28,16 @@ export async function GET(request: NextRequest) {
     const [dreamRecords, total] = await Promise.all([
       db.namedLedger.findMany({
         where: whereClause,
+        include: {
+          user: {
+            select: {
+              id: true,
+              name: true,
+              userType: true,
+              avatar: true
+            }
+          }
+        },
         orderBy: [
           { createdAt: 'desc' },
           { status: 'asc' }
@@ -71,9 +86,11 @@ export async function GET(request: NextRequest) {
       }
     })
   } catch (error) {
-    console.error('Failed to fetch dream records:', error)
+    const digestive = getDigestiveSystem()
+    const digested = digestive.digest(error, { source: 'dream-ledger-api', operation: 'fetch-dream-records' })
+    persistError(digested).catch(() => {})
     return NextResponse.json(
-      { error: 'Failed to fetch dream records' },
+      { error: digested.message, ...(digested.suggestion ? { suggestion: digested.suggestion } : {}) },
       { status: 500 }
     )
   }
@@ -112,7 +129,7 @@ export async function POST(request: NextRequest) {
     }
 
     // 构建特殊数据
-    let dreamData = {}
+    let dreamData: any = {}
     if (specialData) {
       dreamData = {
         dreamType: specialData.dreamType || 'life', // 梦想类型：life, career, health, family, innovation, social
@@ -144,14 +161,91 @@ export async function POST(request: NextRequest) {
         projectId,
         status: 'pending',
         value: calculateDreamValue(dreamData)
+      },
+      include: {
+        user: {
+          select: {
+            id: true,
+            name: true,
+            userType: true,
+            avatar: true
+          }
+        }
       }
+    })
+
+    // 所有用户记录梦想都获得共同体账户奖励
+    const balanceAmount = dreamRecord.value * 0.2 // 梦想记录获得20%庇佑
+    
+    await db.user.update({
+      where: { id: userId },
+      data: {
+        communityBalance: {
+          increment: balanceAmount
+        }
+      }
+    })
+
+    // 记录共同体账户变动
+    await db.communityAccount.create({
+      data: {
+        userId,
+        accountType: 'balance',
+        amount: balanceAmount,
+        reason: `梦境账本记录：${content.substring(0, 30)}...`,
+        transactionType: 'credit'
+      }
+    })
+
+    // 如果是健全人且有合作意愿，给予投资点数
+    if (user.userType === 'able-bodied' && dreamData.collaboration) {
+      const investmentPoints = dreamRecord.value * 0.1
+      
+      await db.user.update({
+        where: { id: userId },
+        data: {
+          investmentPoints: {
+            increment: investmentPoints
+          }
+        }
+      })
+
+      await db.communityAccount.create({
+        data: {
+          userId,
+          accountType: 'investment',
+          amount: investmentPoints,
+          reason: `支持梦想实现：${dreamData.dreamTitle || content.substring(0, 20)}...`,
+          transactionType: 'credit'
+        }
+      })
+    }
+
+    const dopamine = getDopamineEngine()
+    const dopamineRecord = dopamine.release({
+      type: 'help',
+      description: 'User created a dream ledger record',
+      userId: userId,
+      targetId: dreamRecord.id,
+      data: {},
+      timestamp: Date.now(),
+    })
+    await persistDopamine(dopamineRecord)
+
+    getNervousSystem().emit({
+      channel: 'action:help',
+      from: 'dream-ledger-api',
+      payload: { type: 'help', userId, targetId: dreamRecord.id },
+      priority: 5,
     })
 
     return NextResponse.json(dreamRecord, { status: 201 })
   } catch (error) {
-    console.error('Failed to create dream record:', error)
+    const digestive = getDigestiveSystem()
+    const digested = digestive.digest(error, { source: 'dream-ledger-api', operation: 'create-dream-record' })
+    persistError(digested).catch(() => {})
     return NextResponse.json(
-      { error: 'Failed to create dream record' },
+      { error: digested.message, ...(digested.suggestion ? { suggestion: digested.suggestion } : {}) },
       { status: 500 }
     )
   }

@@ -6,7 +6,8 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/com
 import { Badge } from '@/components/ui/badge'
 import { Alert, AlertDescription } from '@/components/ui/alert'
 import { Progress } from '@/components/ui/progress'
-import { Heart, Users, Calendar, MapPin, AlertCircle, Loader2, PlusCircle, Target, TrendingUp, UserCheck, Sparkles } from 'lucide-react'
+import { Heart, Users, Calendar, MapPin, AlertCircle, Loader2, PlusCircle, Target, TrendingUp, UserCheck, Brain } from 'lucide-react'
+import { useNeuralPlug, useDigest } from '@/core/v2/hooks'
 
 interface Project {
   id: string
@@ -36,6 +37,24 @@ export default function SimpleStableHome() {
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
 
+  // === 活体系统接入 ===
+  // 首页接入神经系统：监听项目更新信号
+  const { connected: neuralConnected } = useNeuralPlug({
+    id: 'home-page',
+    name: '首页',
+    type: 'app',
+    channels: ['action:donate', 'action:create', 'project:updated', 'system:plug-in'],
+    onSignal: (signal) => {
+      // 收到捐款或新建项目信号时，自动刷新数据
+      if (signal.channel === 'action:donate' || signal.channel === 'action:create') {
+        loadData()
+      }
+    },
+  })
+
+  // 消化系统：安全加载数据
+  const { safeExec } = useDigest('首页加载')
+
   useEffect(() => {
     loadData()
   }, [])
@@ -44,23 +63,21 @@ export default function SimpleStableHome() {
     try {
       setLoading(true)
       setError(null)
-      
-      // 使用简单的fetch，避免复杂的错误处理
+
       const [projectsResponse, statsResponse] = await Promise.all([
         fetch('/api/projects?featured=true&limit=6'),
-        fetch('/api/stats')
+        fetch('/api/stats'),
       ])
-      
+
       if (projectsResponse.ok) {
         const projectsData = await projectsResponse.json()
         setProjects(projectsData.projects || [])
       }
-      
+
       if (statsResponse.ok) {
         const statsData = await statsResponse.json()
         setStats(statsData)
       }
-      
     } catch (err) {
       console.error('加载数据失败:', err)
       setError('加载数据失败，请刷新页面重试')
@@ -73,7 +90,7 @@ export default function SimpleStableHome() {
     return new Intl.NumberFormat('zh-CN', {
       style: 'currency',
       currency: 'CNY',
-      minimumFractionDigits: 0
+      minimumFractionDigits: 0,
     }).format(amount)
   }
 
@@ -107,20 +124,16 @@ export default function SimpleStableHome() {
               <Heart className="h-8 w-8 text-pink-500 fill-pink-500" />
               <h1 className="text-2xl font-bold text-gray-900">圆聚助残平台</h1>
             </div>
-            <div className="flex gap-2">
-              <Button 
-                size="sm" 
-                variant="outline"
-                className="border-purple-300 text-purple-600 hover:bg-purple-50"
-                onClick={() => window.location.href = '/dexi'}
-              >
-                <Sparkles className="w-4 h-4 mr-2" />
-                德系模块
-              </Button>
-              <Button 
-                size="sm" 
+            <div className="flex items-center gap-3">
+              {/* 神经系统连接状态 */}
+              <div className="flex items-center gap-1.5 text-xs text-gray-500">
+                <div className={`w-2 h-2 rounded-full ${neuralConnected ? 'bg-green-500 animate-pulse' : 'bg-gray-400'}`}></div>
+                <Brain className="h-3.5 w-3.5" />
+              </div>
+              <Button
+                size="sm"
                 className="bg-pink-500 hover:bg-pink-600 text-white"
-                onClick={() => window.location.href = '/create'}
+                onClick={() => (window.location.href = '/create')}
               >
                 <PlusCircle className="w-4 h-4 mr-2" />
                 发起项目
@@ -169,30 +182,21 @@ export default function SimpleStableHome() {
             </p>
 
             <div className="flex flex-col sm:flex-row gap-4 justify-center items-center">
-              <Button 
-                size="lg" 
+              <Button
+                size="lg"
                 className="w-full sm:w-auto bg-white text-pink-600 hover:bg-gray-100 px-8 shadow-lg hover:shadow-xl transform hover:-translate-y-1 transition-all duration-200"
-                onClick={() => window.location.href = '/create'}
+                onClick={() => (window.location.href = '/create')}
               >
                 <PlusCircle className="w-5 h-5 mr-2" />
                 发起助残项目
               </Button>
-              <Button 
-                size="lg" 
-                variant="outline" 
+              <Button
+                size="lg"
+                variant="outline"
                 className="w-full sm:w-auto border-white text-white hover:bg-white hover:text-pink-600 px-8 transition-colors"
-                onClick={() => window.location.href = '/projects'}
+                onClick={() => (window.location.href = '/projects')}
               >
                 浏览项目
-              </Button>
-              <Button 
-                size="lg" 
-                variant="outline" 
-                className="w-full sm:w-auto border-yellow-400 text-yellow-200 hover:bg-yellow-400 hover:text-purple-900 px-8 transition-colors"
-                onClick={() => window.location.href = '/dexi'}
-              >
-                <Sparkles className="w-5 h-5 mr-2" />
-                德系54模块
               </Button>
             </div>
           </div>
@@ -211,7 +215,7 @@ export default function SimpleStableHome() {
                   <div className="text-sm text-gray-600">联建项目</div>
                 </CardContent>
               </Card>
-              
+
               <Card className="text-center">
                 <CardContent className="p-6">
                   <TrendingUp className="h-8 w-8 mx-auto mb-3 text-purple-500" />
@@ -219,7 +223,7 @@ export default function SimpleStableHome() {
                   <div className="text-sm text-gray-600">众筹资金</div>
                 </CardContent>
               </Card>
-              
+
               <Card className="text-center">
                 <CardContent className="p-6">
                   <UserCheck className="h-8 w-8 mx-auto mb-3 text-blue-500" />
@@ -227,7 +231,7 @@ export default function SimpleStableHome() {
                   <div className="text-sm text-gray-600">帮扶人士</div>
                 </CardContent>
               </Card>
-              
+
               <Card className="text-center">
                 <CardContent className="p-6">
                   <Heart className="h-8 w-8 mx-auto mb-3 text-green-500" />
@@ -249,13 +253,13 @@ export default function SimpleStableHome() {
               聚焦农村残疾人就业、医疗、教育、基础设施等关键困境
             </p>
           </div>
-          
+
           {projects.length === 0 ? (
             <div className="text-center py-12">
               <p className="text-gray-500 text-lg mb-4">暂无推荐项目</p>
-              <Button 
+              <Button
                 className="bg-pink-500 hover:bg-pink-600 text-white"
-                onClick={() => window.location.href = '/create'}
+                onClick={() => (window.location.href = '/create')}
               >
                 发起第一个项目
               </Button>
@@ -281,7 +285,7 @@ export default function SimpleStableHome() {
                         {project.description}
                       </CardDescription>
                     </CardHeader>
-                    
+
                     <CardContent className="space-y-4">
                       <div className="space-y-2">
                         <Progress value={getProgressPercentage(project.currentAmount, project.targetAmount)} className="h-2" />
@@ -308,7 +312,7 @@ export default function SimpleStableHome() {
                             <span>{formatDate(project.endDate)}</span>
                           </div>
                         </div>
-                        
+
                         {project.location && (
                           <div className="flex items-center gap-1">
                             <MapPin className="h-4 w-4" />
@@ -317,9 +321,9 @@ export default function SimpleStableHome() {
                         )}
                       </div>
 
-                      <Button 
+                      <Button
                         className="w-full bg-pink-500 hover:bg-pink-600 text-white shadow-md hover:shadow-lg transform hover:-translate-y-0.5 transition-all duration-200"
-                        onClick={() => window.location.href = `/project/${project.id}`}
+                        onClick={() => (window.location.href = `/project/${project.id}`)}
                       >
                         参与联建
                       </Button>
@@ -327,13 +331,13 @@ export default function SimpleStableHome() {
                   </Card>
                 ))}
               </div>
-              
+
               <div className="text-center">
-                <Button 
-                  variant="outline" 
-                  size="lg" 
+                <Button
+                  variant="outline"
+                  size="lg"
                   className="border-pink-500 text-pink-600 hover:bg-pink-50 hover:border-pink-600 transition-colors"
-                  onClick={() => window.location.href = '/projects'}
+                  onClick={() => (window.location.href = '/projects')}
                 >
                   查看更多联建项目
                 </Button>
@@ -353,7 +357,7 @@ export default function SimpleStableHome() {
             <p className="text-xl mb-8 max-w-3xl mx-auto leading-relaxed">
               健全人通过帮扶农村残疾人获得未来股权投资机会，共建残健庇护信托智能合约系统
             </p>
-            
+
             <div className="bg-white/10 backdrop-blur-sm rounded-xl p-8 mb-8 max-w-2xl mx-auto border border-white/20">
               <h3 className="text-xl font-semibold mb-4">平台发起人</h3>
               <div className="text-lg mb-2">
@@ -369,12 +373,12 @@ export default function SimpleStableHome() {
                 <p>实现新天枰倾斜的公益理念。</p>
               </div>
             </div>
-            
-            <Button 
-              size="lg" 
-              variant="secondary" 
+
+            <Button
+              size="lg"
+              variant="secondary"
               className="bg-white text-pink-600 hover:bg-gray-100 px-8 shadow-lg hover:shadow-xl transform hover:-translate-y-1 transition-all duration-200"
-              onClick={() => window.location.href = '/create'}
+              onClick={() => (window.location.href = '/create')}
             >
               发起联建项目
             </Button>

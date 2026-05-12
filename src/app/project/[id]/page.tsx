@@ -11,7 +11,8 @@ import { Input } from '@/components/ui/input'
 import { Textarea } from '@/components/ui/textarea'
 import { Separator } from '@/components/ui/separator'
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar'
-import { Heart, Users, MapPin, Calendar, Share2, ArrowLeft, User } from 'lucide-react'
+import { Heart, Users, MapPin, Calendar, Share2, ArrowLeft, User, Brain, Sparkles } from 'lucide-react'
+import { useNeuralPlug, useDigest, useDopamine } from '@/core/v2/hooks'
 
 export default function ProjectDetailPage() {
   const params = useParams()
@@ -24,7 +25,32 @@ export default function ProjectDetailPage() {
   const [donationAmount, setDonationAmount] = useState('')
   const [donationMessage, setDonationMessage] = useState('')
   const [anonymous, setAnonymous] = useState(false)
-  const [submitting, setSubmitting] = useState(false)
+  const [dopamineResult, setDopamineResult] = useState<{
+    value: number
+    score: any
+  } | null>(null)
+
+  // === 活体系统接入 ===
+  // 神经系统：插上插头，接收捐款相关信号
+  const { emit: emitNeural, connected: neuralConnected } = useNeuralPlug({
+    id: `project-detail-${projectId}`,
+    name: '项目详情页',
+    type: 'app',
+    channels: ['action:donate', 'project:updated', 'dopamine:released'],
+    onSignal: (signal) => {
+      // 收到其他地方的捐款信号时，刷新页面数据
+      if (signal.channel === 'action:donate' && signal.payload.targetId === projectId) {
+        fetchProject()
+        fetchDonations()
+      }
+    },
+  })
+
+  // 消化系统：安全执行，错误自动消化
+  const { safeExec, loading: digesting, error: digestError, clearError } = useDigest('捐款')
+
+  // 多巴胺系统：善行评分
+  const { lastScore, totalDopamine } = useDopamine('temp-user-id')
 
   useEffect(() => {
     if (projectId) {
@@ -64,12 +90,11 @@ export default function ProjectDetailPage() {
 
   const handleDonation = async () => {
     if (!donationAmount || parseFloat(donationAmount) <= 0) {
-      alert('请输入有效的捐款金额')
       return
     }
 
-    try {
-      setSubmitting(true)
+    // 通过消化系统安全执行捐款
+    const result = await safeExec(async () => {
       const response = await fetch(`/api/projects/${projectId}/donate`, {
         method: 'POST',
         headers: {
@@ -79,26 +104,39 @@ export default function ProjectDetailPage() {
           amount: parseFloat(donationAmount),
           message: donationMessage,
           anonymous,
-          donorId: 'temp-user-id' // 这里应该从用户认证中获取
+          donorId: 'temp-user-id',
         }),
       })
 
-      if (response.ok) {
-        alert('捐款成功！感谢您的爱心支持！')
-        setDonationAmount('')
-        setDonationMessage('')
-        setAnonymous(false)
-        fetchProject()
-        fetchDonations()
-      } else {
-        const error = await response.json()
-        alert(error.error || '捐款失败，请重试')
+      if (!response.ok) {
+        const errorData = await response.json()
+        throw new Error(errorData.error || '捐款失败')
       }
-    } catch (error) {
-      console.error('Donation failed:', error)
-      alert('捐款失败，请重试')
-    } finally {
-      setSubmitting(false)
+
+      return response.json()
+    })
+
+    if (result && !(result && 'grade' in result)) {
+      // 捐款成功！
+      setDonationAmount('')
+      setDonationMessage('')
+      setAnonymous(false)
+
+      // 显示多巴胺评分结果
+      if (result.dopamine) {
+        setDopamineResult(result.dopamine)
+      }
+
+      // 通过神经系统广播捐款信号
+      emitNeural('action:donate', {
+        type: 'donate',
+        userId: 'temp-user-id',
+        targetId: projectId,
+        amount: parseFloat(donationAmount),
+      })
+
+      fetchProject()
+      fetchDonations()
     }
   }
 
@@ -106,7 +144,7 @@ export default function ProjectDetailPage() {
     return new Intl.NumberFormat('zh-CN', {
       style: 'currency',
       currency: 'CNY',
-      minimumFractionDigits: 0
+      minimumFractionDigits: 0,
     }).format(amount)
   }
 
@@ -156,6 +194,12 @@ export default function ProjectDetailPage() {
               </Button>
             </Link>
             <div className="flex-1"></div>
+            {/* 神经系统连接状态指示灯 */}
+            <div className="flex items-center gap-1.5 text-xs text-gray-500">
+              <div className={`w-2 h-2 rounded-full ${neuralConnected ? 'bg-green-500' : 'bg-gray-400'}`}></div>
+              <Brain className="h-3.5 w-3.5" />
+              <span>{neuralConnected ? '神经系统已连接' : '未连接'}</span>
+            </div>
             <Button variant="outline" size="sm">
               <Share2 className="h-4 w-4 mr-2" />
               分享
@@ -195,12 +239,12 @@ export default function ProjectDetailPage() {
                         {getProgressPercentage(project.currentAmount, project.targetAmount).toFixed(1)}%
                       </span>
                     </div>
-                    <Progress 
-                      value={getProgressPercentage(project.currentAmount, project.targetAmount)} 
+                    <Progress
+                      value={getProgressPercentage(project.currentAmount, project.targetAmount)}
                       className="h-3"
                     />
                   </div>
-                  
+
                   <div className="grid grid-cols-3 gap-4 text-center">
                     <div>
                       <div className="text-2xl font-bold text-pink-600">
@@ -379,13 +423,54 @@ export default function ProjectDetailPage() {
                   </label>
                 </div>
 
-                <Button 
+                <Button
                   className="w-full bg-pink-500 hover:bg-pink-600 text-white"
                   onClick={handleDonation}
-                  disabled={submitting || !donationAmount}
+                  disabled={digesting || !donationAmount}
                 >
-                  {submitting ? '处理中...' : '立即捐款'}
+                  {digesting ? '处理中...' : '立即捐款'}
                 </Button>
+
+                {/* 消化系统的错误提示 — 如果有错误，说明消化系统排出了大便 */}
+                {digestError && (
+                  <div className="bg-yellow-50 border border-yellow-200 rounded-lg p-3 text-sm text-yellow-800">
+                    <p>{digestError}</p>
+                    <Button variant="link" size="sm" onClick={clearError} className="text-yellow-700 p-0 h-auto">
+                      关闭
+                    </Button>
+                  </div>
+                )}
+
+                {/* 多巴胺评分展示 — 做善事后显示的奖励 */}
+                {dopamineResult && (
+                  <div className="bg-green-50 border border-green-200 rounded-lg p-4 space-y-3">
+                    <div className="flex items-center gap-2 text-green-800 font-semibold">
+                      <Sparkles className="h-5 w-5" />
+                      善行已记录！多巴胺 +{dopamineResult.value}
+                    </div>
+                    <div className="grid grid-cols-2 gap-2 text-xs">
+                      <div className="flex justify-between">
+                        <span className="text-gray-600">善良</span>
+                        <span className="font-medium">{dopamineResult.score.kindness}</span>
+                      </div>
+                      <div className="flex justify-between">
+                        <span className="text-gray-600">恻隐</span>
+                        <span className="font-medium">{dopamineResult.score.compassion}</span>
+                      </div>
+                      <div className="flex justify-between">
+                        <span className="text-gray-600">正义</span>
+                        <span className="font-medium">{dopamineResult.score.justice}</span>
+                      </div>
+                      <div className="flex justify-between">
+                        <span className="text-gray-600">奉献</span>
+                        <span className="font-medium">{dopamineResult.score.dedication}</span>
+                      </div>
+                    </div>
+                    <div className="text-xs text-gray-500 text-center">
+                      五维道德评分 · 加权总分 {dopamineResult.score.total}
+                    </div>
+                  </div>
+                )}
 
                 <p className="text-xs text-gray-500 text-center">
                   感谢您的爱心支持，每一份善意都将传递温暖

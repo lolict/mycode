@@ -1,5 +1,7 @@
 import { NextResponse } from 'next/server'
 import { db } from '@/lib/db'
+import { getDigestiveSystem } from '@/core/v2/digestive'
+import { persistError } from '@/core/v2/digestive/persist'
 
 export async function GET() {
   try {
@@ -48,9 +50,11 @@ export async function GET() {
       successRate
     })
   } catch (error) {
-    console.error('Failed to fetch stats:', error)
+    const digestive = getDigestiveSystem()
+    const digested = digestive.digest(error, { source: 'stats-api', operation: 'fetch-stats' })
+    persistError(digested).catch(() => {})
     return NextResponse.json(
-      { error: 'Failed to fetch stats' },
+      { error: digested.message, ...(digested.suggestion ? { suggestion: digested.suggestion } : {}) },
       { status: 500 }
     )
   }

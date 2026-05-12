@@ -1,5 +1,10 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { db } from '@/lib/db'
+import { getDigestiveSystem } from '@/core/v2/digestive'
+import { persistError } from '@/core/v2/digestive/persist'
+import { getDopamineEngine } from '@/core/v2/dopamine'
+import { persistDopamine } from '@/core/v2/dopamine/persist'
+import { getNervousSystem } from '@/core/v2/nervous'
 
 export async function GET() {
   try {
@@ -17,11 +22,20 @@ export async function GET() {
       orderBy: { createdAt: 'desc' }
     })
 
-    return NextResponse.json(ledgers)
+    // Parse JSON fields for client consumption
+    const parsed = ledgers.map((l: any) => ({
+      ...l,
+      specialData: l.specialData ? JSON.parse(l.specialData) : null,
+      tags: l.tags ? JSON.parse(l.tags) : null,
+    }))
+
+    return NextResponse.json(parsed)
   } catch (error) {
-    console.error('Failed to fetch ledgers:', error)
+    const digestive = getDigestiveSystem()
+    const digested = digestive.digest(error, { source: 'ledger-api', operation: 'fetch-ledgers' })
+    persistError(digested).catch(() => {})
     return NextResponse.json(
-      { error: 'Failed to fetch ledgers' },
+      { error: digested.message, ...(digested.suggestion ? { suggestion: digested.suggestion } : {}) },
       { status: 500 }
     )
   }
@@ -44,7 +58,7 @@ export async function POST(request: NextRequest) {
     const validTypes = [
       'technology', 'technique', 'public_tool', 'intelligence', 
       'energy', 'charity', 'donation', 'volunteer', 'time', 
-      'deposit', 'cooperation'
+      'deposit', 'cooperation', 'art'
     ]
     
     if (!validTypes.includes(ledgerType)) {
@@ -69,15 +83,38 @@ export async function POST(request: NextRequest) {
         ledgerType,
         content,
         value: parseFloat(value) || 0,
-        status: 'pending'
+        status: 'pending',
+        specialData: body.specialData ? JSON.stringify(body.specialData) : null,
+        tags: body.tags ? JSON.stringify(body.tags) : null,
+        privacy: body.privacy || 'private',
       }
+    })
+
+    const dopamine = getDopamineEngine()
+    const dopamineRecord = dopamine.release({
+      type: 'volunteer',
+      description: 'User created a ledger entry',
+      userId: user.id,
+      targetId: ledger.id,
+      data: {},
+      timestamp: Date.now(),
+    })
+    await persistDopamine(dopamineRecord)
+
+    getNervousSystem().emit({
+      channel: 'action:volunteer',
+      from: 'ledger-api',
+      payload: { type: 'volunteer', userId: user.id, targetId: ledger.id },
+      priority: 5,
     })
 
     return NextResponse.json(ledger, { status: 201 })
   } catch (error) {
-    console.error('Failed to create ledger:', error)
+    const digestive = getDigestiveSystem()
+    const digested = digestive.digest(error, { source: 'ledger-api', operation: 'create-ledger' })
+    persistError(digested).catch(() => {})
     return NextResponse.json(
-      { error: 'Failed to create ledger' },
+      { error: digested.message, ...(digested.suggestion ? { suggestion: digested.suggestion } : {}) },
       { status: 500 }
     )
   }

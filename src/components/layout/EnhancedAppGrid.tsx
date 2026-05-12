@@ -350,8 +350,8 @@ export function EnhancedAppGrid({ apps, categories }: EnhancedAppGridProps) {
   }, [announceToScreenReader])
 
   // 键盘导航处理
-  const handleGridKeyboardNavigation = useCallback((event: React.KeyboardEvent) => {
-    handleKeyboardNavigation(event as unknown as KeyboardEvent, {
+  const handleGridKeyboardNavigation = useCallback((event: React.KeyboardEvent<HTMLDivElement>) => {
+    handleKeyboardNavigation(event, {
       onArrowUp: () => {
         // 实现向上导航逻辑
       },

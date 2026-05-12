@@ -1,5 +1,7 @@
 import { NextResponse } from 'next/server'
 import { db } from '@/lib/db'
+import { getDigestiveSystem } from '@/core/v2/digestive'
+import { persistError } from '@/core/v2/digestive/persist'
 
 export async function GET() {
   try {
@@ -22,9 +24,11 @@ export async function GET() {
 
     return NextResponse.json(categories)
   } catch (error) {
-    console.error('Failed to fetch categories:', error)
+    const digestive = getDigestiveSystem()
+    const digested = digestive.digest(error, { source: 'categories-api', operation: 'fetch-categories' })
+    persistError(digested).catch(() => {})
     return NextResponse.json(
-      { error: 'Failed to fetch categories' },
+      { error: digested.message, ...(digested.suggestion ? { suggestion: digested.suggestion } : {}) },
       { status: 500 }
     )
   }
@@ -61,9 +65,11 @@ export async function POST() {
 
     return NextResponse.json(createdCategories, { status: 201 })
   } catch (error) {
-    console.error('Failed to create categories:', error)
+    const digestive = getDigestiveSystem()
+    const digested = digestive.digest(error, { source: 'categories-api', operation: 'create-categories' })
+    persistError(digested).catch(() => {})
     return NextResponse.json(
-      { error: 'Failed to create categories' },
+      { error: digested.message, ...(digested.suggestion ? { suggestion: digested.suggestion } : {}) },
       { status: 500 }
     )
   }

@@ -18,7 +18,7 @@ export function useAccessibility() {
   }, [])
 
   const handleKeyboardNavigation = useCallback((
-    event: KeyboardEvent,
+    event: KeyboardEvent | React.KeyboardEvent,
     callbacks: {
       onEnter?: () => void
       onEscape?: () => void

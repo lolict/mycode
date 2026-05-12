@@ -9,11 +9,11 @@ import { EnhancedAppGrid } from '@/components/layout/EnhancedAppGrid'
 import { ErrorBoundary } from '@/components/ui/error-boundary'
 import { SuspenseBoundary } from '@/components/ui/suspense-boundary'
 import { useAppStore, useAppActions } from '@/lib/store'
-import {
-  Heart,
-  Users,
-  Target,
-  BookOpen,
+import { 
+  Heart, 
+  Users, 
+  Target, 
+  BookOpen, 
   Star,
   Activity,
   Brain,
@@ -36,6 +36,7 @@ import {
   ArrowRight,
   Grid3X3,
   Eye,
+  Cloud,
   Sparkles
 } from 'lucide-react'
 
@@ -188,8 +189,8 @@ export default function AppsCenter() {
         icon: <Brain className="h-8 w-8" />,
         color: 'bg-cyan-500',
         category: 'community',
-        status: 'developing',
-        path: '#',
+        status: 'active',
+        path: '/ledger/intellectual',
         features: ['智力成果', '价值评估', '知识贡献', '创新激励'],
         priority: 20,
         recentlyUsed: recentlyUsedApps.includes('intellectual-ledger'),
@@ -202,8 +203,8 @@ export default function AppsCenter() {
         icon: <Palette className="h-8 w-8" />,
         color: 'bg-purple-600',
         category: 'community',
-        status: 'developing',
-        path: '#',
+        status: 'active',
+        path: '/ledger/art',
         features: ['艺术创作', '作品评估', '版权保护', '价值分配'],
         priority: 21,
         recentlyUsed: recentlyUsedApps.includes('art-ledger'),
@@ -216,8 +217,8 @@ export default function AppsCenter() {
         icon: <Code className="h-8 w-8" />,
         color: 'bg-gray-700',
         category: 'community',
-        status: 'developing',
-        path: '#',
+        status: 'active',
+        path: '/ledger/tech',
         features: ['技术贡献', '代码价值', '开发成果', '技术创新'],
         priority: 22,
         recentlyUsed: recentlyUsedApps.includes('tech-ledger'),
@@ -230,8 +231,8 @@ export default function AppsCenter() {
         icon: <Sun className="h-8 w-8" />,
         color: 'bg-yellow-500',
         category: 'community',
-        status: 'planned',
-        path: '#',
+        status: 'active',
+        path: '/ledger/solar',
         features: ['光伏贡献', '绿色能源', '环保价值', '可持续发展'],
         priority: 30,
         recentlyUsed: recentlyUsedApps.includes('solar-ledger'),
@@ -244,8 +245,8 @@ export default function AppsCenter() {
         icon: <ShoppingCart className="h-8 w-8" />,
         color: 'bg-orange-500',
         category: 'community',
-        status: 'planned',
-        path: '#',
+        status: 'active',
+        path: '/ledger/sales',
         features: ['公益销售', '农产品', '销售渠道', '收益分配'],
         priority: 31,
         recentlyUsed: recentlyUsedApps.includes('sales-ledger'),
@@ -260,8 +261,8 @@ export default function AppsCenter() {
         icon: <Smartphone className="h-8 w-8" />,
         color: 'bg-violet-600',
         category: 'infrastructure',
-        status: 'developing',
-        path: '#',
+        status: 'active',
+        path: '/ledger/public',
         features: ['分布式记账', '节点支持', '算力共享', '数据存储'],
         priority: 25,
         recentlyUsed: recentlyUsedApps.includes('public-ledger'),
@@ -274,14 +275,41 @@ export default function AppsCenter() {
         icon: <Clock className="h-8 w-8" />,
         color: 'bg-rose-500',
         category: 'infrastructure',
-        status: 'developing',
-        path: '#',
+        status: 'active',
+        path: '/ledger/time',
         features: ['时间价值', '时长记录', '效率评估', '时间投资'],
         priority: 26,
         recentlyUsed: recentlyUsedApps.includes('time-ledger'),
         isFavorite: !!favorites['time-ledger']
       },
-
+      {
+        id: 'living-system',
+        name: '活体系统监控',
+        description: '神经系统+消化排泄+多巴胺三大系统实时监控面板',
+        icon: <Activity className="h-8 w-8" />,
+        color: 'bg-teal-500',
+        category: 'infrastructure',
+        status: 'active',
+        path: '/living',
+        features: ['神经信号', '错误排泄', '多巴胺评分', '五维道德'],
+        priority: 6,
+        recentlyUsed: recentlyUsedApps.includes('living-system'),
+        isFavorite: !!favorites['living-system']
+      },
+      {
+        id: 'cloud-sync',
+        name: '云端同步',
+        description: 'GitHub+WebDAV+志愿者节点+P2P四线同步，无服务器也能云存储',
+        icon: <Cloud className="h-8 w-8" />,
+        color: 'bg-sky-500',
+        category: 'infrastructure',
+        status: 'active',
+        path: '/cloud',
+        features: ['GitHub同步', 'WebDAV备份', '志愿者节点', 'P2P直连'],
+        priority: 7,
+        recentlyUsed: recentlyUsedApps.includes('cloud-sync'),
+        isFavorite: !!favorites['cloud-sync']
+      },
       // 德系五十四模块 - 核心入口
       {
         id: 'dexi',
@@ -310,6 +338,11 @@ export default function AppsCenter() {
     { id: 'infrastructure', name: '基础设施', icon: <TrendingUp className="h-4 w-4" /> }
   ]
 
+  // 处理应用点击 - 记录最近使用
+  const handleAppClick = (appId: string) => {
+    recordAppUsage(appId)
+  }
+
   // 德系模块快捷入口 - 在头部区域显示
   const dexiFeaturedModules = [
     { name: '德器·辅具', desc: '辅具管理', color: 'bg-slate-500' },
@@ -319,11 +352,6 @@ export default function AppsCenter() {
     { name: '德创·创业', desc: '创新创业', color: 'bg-cyan-500' },
     { name: '德书·阅读', desc: '无障碍阅读', color: 'bg-violet-500' },
   ]
-
-  // 处理应用点击 - 记录最近使用
-  const handleAppClick = (appId: string) => {
-    recordAppUsage(appId)
-  }
 
   return (
     <div className="min-h-screen bg-gradient-to-b from-purple-50 to-white">
