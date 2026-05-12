@@ -35,7 +35,8 @@ import {
   TrendingUp,
   ArrowRight,
   Grid3X3,
-  Eye
+  Eye,
+  Cloud
 } from 'lucide-react'
 
 interface AppInfo {
@@ -293,6 +294,20 @@ export default function AppsCenter() {
         priority: 6,
         recentlyUsed: recentlyUsedApps.includes('living-system'),
         isFavorite: !!favorites['living-system']
+      },
+      {
+        id: 'cloud-sync',
+        name: '云端同步',
+        description: 'GitHub+WebDAV+志愿者节点+P2P四线同步，无服务器也能云存储',
+        icon: <Cloud className="h-8 w-8" />,
+        color: 'bg-sky-500',
+        category: 'infrastructure',
+        status: 'active',
+        path: '/cloud',
+        features: ['GitHub同步', 'WebDAV备份', '志愿者节点', 'P2P直连'],
+        priority: 7,
+        recentlyUsed: recentlyUsedApps.includes('cloud-sync'),
+        isFavorite: !!favorites['cloud-sync']
       }
     ]
 
