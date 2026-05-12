@@ -344,3 +344,90 @@ model DexiRecord {
   createdAt  DateTime @default(now())
   updatedAt  DateTime @updatedAt
 }
+
+// ============================================
+// 道德股权系统 - Moral Equity System
+// ============================================
+// 核心思想：道德行为定义价值，完成任务积攒道德股权
+// 所有术语可自定义（不硬编码"积分"等词汇）
+
+// 道德股权余额 — 每个用户的道德价值总量
+model MoralEquity {
+  id            String   @id @default(cuid())
+  userId        String   @unique
+  totalEquity   Float    @default(0)    // 道德股权总值（由完成任务累积）
+  level         Int      @default(1)    // 等级
+  tier          String   @default("初善")  // 品阶
+  totalTasks    Int      @default(0)    // 完成任务总数
+  streakDays    Int      @default(0)    // 连续打卡天数
+  lastActiveAt  DateTime?              // 最后活跃时间
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+}
+
+// 道德任务定义 — 管理者可创建的日常/周常/一次性任务
+model MoralTask {
+  id            String   @id @default(cuid())
+  code          String   @unique        // 任务代码
+  name          String                  // 任务名称
+  description   String                  // 任务描述
+  category      String                  // 任务分类：daily/weekly/one-time/special
+  moralValue    Float    @default(10)   // 完成可获得的道德值
+  difficulty    String   @default("easy") // easy/medium/hard/legendary
+  frequency     String   @default("daily") // daily/weekly/monthly/one-time
+  isActive      Boolean  @default(true)
+  conditions    String?  // JSON — 完成条件定义
+  rewards       String?  // JSON — 奖励定义（可含额外五维加成）
+  icon          String?  // 图标
+  color         String?  // 颜色
+  sortOrder     Int      @default(0)
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+  completions   MoralTaskCompletion[]
+}
+
+// 任务完成记录 — 用户完成道德任务的凭证
+model MoralTaskCompletion {
+  id              String    @id @default(cuid())
+  taskId          String
+  task            MoralTask @relation(fields: [taskId], references: [id])
+  userId          String
+  moralValueEarned Float   @default(0)   // 本次获得的道德值
+  fiveDimScore    String?  // JSON — 本次五维评分
+  proof           String?  // JSON — 完成凭证（图片/文字/链接）
+  note            String?  // 用户备注
+  status          String   @default("confirmed") // pending/confirmed/rejected
+  reviewedBy      String?  // 审核人
+  reviewedAt      DateTime?
+  createdAt       DateTime @default(now())
+}
+
+// 词汇管理 — 所有可自定义术语的定义与存储
+// 核心设计：不硬编码"积分"等词汇，由管理者通过此表自定义
+model MoralVocabulary {
+  id            String   @id @default(cuid())
+  vocabKey      String   @unique       // 词汇键名（如 value_unit, action_donate）
+  defaultValue  String                  // 默认值（如"德值"）
+  customValue   String?                 // 管理者自定义值（如"善点"、"功德"）
+  category      String                  // 词汇分类（见下方分类定义）
+  description   String                  // 词汇说明（什么语境下使用）
+  scope         String   @default("global") // global/module — 全局还是模块级别
+  moduleCode    String?                 // 如果scope=module，关联的德系模块
+  isCustomized  Boolean  @default(false)    // 是否已被管理者修改
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+}
+
+// 词汇导入日志 — 记录每次词汇资源的导入操作
+model VocabImportLog {
+  id            String   @id @default(cuid())
+  source        String                  // json/csv/manual/api
+  fileName      String?                 // 来源文件名
+  recordCount   Int      @default(0)    // 导入词汇数
+  successCount  Int      @default(0)    // 成功数
+  failCount     Int      @default(0)    // 失败数
+  errors        String?  // JSON — 错误详情
+  importedBy    String?                 // 导入者
+  status        String   @default("completed") // processing/completed/failed
+  createdAt     DateTime @default(now())
+}

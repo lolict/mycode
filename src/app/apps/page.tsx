@@ -37,7 +37,8 @@ import {
   Grid3X3,
   Eye,
   Cloud,
-  Sparkles
+  Sparkles,
+  Landmark
 } from 'lucide-react'
 
 interface AppInfo {
@@ -324,6 +325,21 @@ export default function AppsCenter() {
         priority: 0,
         recentlyUsed: recentlyUsedApps.includes('dexi'),
         isFavorite: !!favorites['dexi']
+      },
+      // 道德股权 - 核心入口
+      {
+        id: 'moral-equity',
+        name: '道德股权',
+        description: '道德行为定义价值，完成任务积攒德值，所有术语可自定义，支持文档导入词汇资源',
+        icon: <Landmark className="h-8 w-8" />,
+        color: 'bg-gradient-to-r from-amber-600 to-red-600',
+        category: 'core',
+        status: 'active',
+        path: '/moral-equity',
+        features: ['道德任务', '股权累积', '词汇自定义', '文档导入'],
+        priority: 0,
+        recentlyUsed: recentlyUsedApps.includes('moral-equity'),
+        isFavorite: !!favorites['moral-equity']
       }
     ]
 
