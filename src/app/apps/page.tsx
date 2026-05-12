@@ -38,7 +38,8 @@ import {
   Eye,
   Cloud,
   Sparkles,
-  Landmark
+  Landmark,
+  Cable
 } from 'lucide-react'
 
 interface AppInfo {
@@ -340,6 +341,21 @@ export default function AppsCenter() {
         priority: 0,
         recentlyUsed: recentlyUsedApps.includes('moral-equity'),
         isFavorite: !!favorites['moral-equity']
+      },
+      // 插板系统 - 基础设施入口
+      {
+        id: 'plug-board',
+        name: '插板系统',
+        description: '插头·插槽·型号·兼容·连接 — 词汇/UI/数据/行为统一插拔，神经系统通用路由',
+        icon: <Cable className="h-8 w-8" />,
+        color: 'bg-gradient-to-r from-slate-600 to-zinc-600',
+        category: 'infrastructure',
+        status: 'active',
+        path: '/plug-board',
+        features: ['7种插头型号', '7种插槽型号', '兼容规则', '神经路由'],
+        priority: 1,
+        recentlyUsed: recentlyUsedApps.includes('plug-board'),
+        isFavorite: !!favorites['plug-board']
       }
     ]
 

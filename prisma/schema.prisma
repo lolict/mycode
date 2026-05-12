@@ -431,3 +431,108 @@ model VocabImportLog {
   status        String   @default("completed") // processing/completed/failed
   createdAt     DateTime @default(now())
 }
+
+// ============================================
+// 插板系统 - Plug-Socket Board System
+// ============================================
+// 核心设计：一切资源都是插头/插槽，型号匹配才能插入
+// 词汇是插头、UI是插头、数据是插头、行为是插头
+// 显示位是插槽、渲染位是插槽、输入位是插槽、处理位是插槽
+// 神经系统负责信号路由——插头插入插槽，信号自动流通
+
+// 插头型号 — 定义一类插头的规格（如"词汇插头"是两孔圆插头）
+model PlugType {
+  id          String   @id @default(cuid())
+  code        String   @unique        // vocab/ui/data/action/signal/style/config
+  name        String                  // 词汇插头/UI插头/数据插头...
+  description String
+  pinCount    Int      @default(1)    // 引脚数量（接口参数个数）
+  pinDefs     String?  // JSON — 引脚定义 [{name, type, required, description}]
+  icon        String?
+  color       String?
+  isSystem    Boolean  @default(true)
+  createdAt   DateTime @default(now())
+  plugs       Plug[]
+}
+
+// 插槽型号 — 定义一类插槽的规格（如"词汇插槽"是两孔圆插座）
+model SocketType {
+  id            String   @id @default(cuid())
+  code          String   @unique    // vocab_display/ui_render/data_input/action_handler/signal_channel/style_apply/config_read
+  name          String
+  description   String
+  pinCount      Int      @default(1) // 期望引脚数
+  pinDefs       String?  // JSON — 期望的引脚定义
+  icon          String?
+  color         String?
+  isSystem      Boolean  @default(true)
+  createdAt     DateTime @default(now())
+  sockets       Socket[]
+  compatRules   CompatibleRule[]
+}
+
+// 兼容规则 — 哪种插头型号可以插入哪种插槽型号（转接头定义）
+model CompatibleRule {
+  id             String   @id @default(cuid())
+  plugTypeCode   String                 // 插头型号code
+  socketTypeCode String                 // 插槽型号code
+  socketType     SocketType @relation(fields: [socketTypeCode], references: [code])
+  transform      String?  // JSON — 插头值→插槽值的转换规则
+  priority       Int      @default(0)  // 多个兼容时选最高优先级
+  description    String?  // 为什么能兼容
+  createdAt      DateTime @default(now())
+
+  @@unique([plugTypeCode, socketTypeCode])
+}
+
+// 插头 — 实际的插头实例（每个词汇项、UI组件都是一个插头）
+model Plug {
+  id            String   @id @default(cuid())
+  code          String   @unique       // 唯一标识（如 vocab_value_unit, ui_five_dim_radar）
+  name          String                 // 插头名称
+  description   String?
+  plugTypeCode  String                 // 插头型号
+  plugType      PlugType @relation(fields: [plugTypeCode], references: [code])
+  provider      String                 // 提供者模块（如 moral-vocabulary, dopamine, dexi）
+  pinValues     String?  // JSON — 引脚值（插头携带的数据/配置）
+  isActive      Boolean  @default(true)
+  sourceModule  String?  // 来源德系模块code
+  sourceId      String?  // 来源记录ID
+  version       Int      @default(1)   // 版本号，用于热更新
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+  connections   PlugConnection[]
+}
+
+// 插槽 — 实际的插槽实例（每个显示位、渲染位都是一个插槽）
+model Socket {
+  id             String   @id @default(cuid())
+  code           String   @unique     // 唯一标识（如 display_value_unit, render_moral_radar）
+  name           String
+  description    String?
+  socketTypeCode String                // 插槽型号
+  socketType     SocketType @relation(fields: [socketTypeCode], references: [code])
+  consumer       String                // 消费者模块（如 moral-equity-page, ledger-page）
+  location       String?  // JSON — 插槽位置描述 {page, component, area, slot}
+  requiredPlugType String? // 强制要求某种型号的插头
+  isRequired     Boolean  @default(false) // 是否必须插入
+  allowMultiple  Boolean  @default(false) // 是否允许同时插入多个插头
+  isActive       Boolean  @default(true)
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
+  connections    PlugConnection[]
+}
+
+// 插头连接 — 记录哪个插头插入了哪个插槽
+model PlugConnection {
+  id              String    @id @default(cuid())
+  plugId          String
+  plug            Plug      @relation(fields: [plugId], references: [id])
+  socketId        String
+  socket          Socket    @relation(fields: [socketId], references: [id])
+  status          String    @default("active")  // active/disconnected/error
+  transformResult String?   // JSON — 通过兼容规则transform后的最终值
+  connectedAt     DateTime  @default(now())
+  disconnectedAt  DateTime?
+  signalChannel   String?   // 连接对应的神经信号频道
+}
