@@ -433,106 +433,129 @@ model VocabImportLog {
 }
 
 // ============================================
-// 插板系统 - Plug-Socket Board System
+// 插板系统 - Unified Plug-Socket Board System
 // ============================================
 // 核心设计：一切资源都是插头/插槽，型号匹配才能插入
-// 词汇是插头、UI是插头、数据是插头、行为是插头
-// 显示位是插槽、渲染位是插槽、输入位是插槽、处理位是插槽
+// 7种插头型号: vocab/ui/data/action/signal/style/config
+// 7种插槽型号: vocab_display/ui_render/data_input/action_handler/signal_channel/style_apply/config_read
+// 11条兼容规则（含跨型号转接）
 // 神经系统负责信号路由——插头插入插槽，信号自动流通
+//
+// 统一架构：
+// - PlugModel: 插头实例（含引脚值、接口规范、提供者信息）
+// - SlotModel: 插槽实例（含位置、消费者、是否必需等）
+// - PlugConnection: 连接记录（含信号频道、转换结果）
+// - VocabPlugModel: 词汇专用插头型号（含词汇表、神经映射）
+// - UIPlugModel: UI专用插头型号（含模板、行为规格）
+// - NeuralNode: 神经节点（信号路由、激活函数）
 
-// 插头型号 — 定义一类插头的规格（如"词汇插头"是两孔圆插头）
-model PlugType {
-  id          String   @id @default(cuid())
-  code        String   @unique        // vocab/ui/data/action/signal/style/config
-  name        String                  // 词汇插头/UI插头/数据插头...
-  description String
-  pinCount    Int      @default(1)    // 引脚数量（接口参数个数）
-  pinDefs     String?  // JSON — 引脚定义 [{name, type, required, description}]
-  icon        String?
-  color       String?
-  isSystem    Boolean  @default(true)
-  createdAt   DateTime @default(now())
-  plugs       Plug[]
+// 插头实例 — 每个词汇项、UI组件、数据源等都是一个插头
+model PlugModel {
+  id              String   @id @default(cuid())
+  code            String   @unique       // 唯一标识（如 vocab_value_unit, ui_five_dim_radar）
+  name            String                 // 插头名称
+  description     String?                // 插头描述
+  plugTypeCode    String                 // 插头型号: vocab/ui/data/action/signal/style/config
+  provider        String   @default("")  // 提供者模块（如 moral-vocabulary, dopamine, dexi）
+  pinValues       String?  // JSON — 引脚值（插头携带的数据/配置）
+  version         String   @default("1.0.0")  // 版本号
+  interfaceSpec   String?  // JSON — 接口规范 PlugBoardInterface
+  config          String?  // JSON — 配置参数
+  dependencies    String?  // JSON — 依赖列表
+  tags            String?  // 逗号分隔标签
+  author          String?  // 作者
+  sourceModule    String?  // 来源德系模块code
+  sourceId        String?  // 来源记录ID
+  status          String   @default("active")  // active/inactive/deprecated
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+  connections     PlugConnection[]
 }
 
-// 插槽型号 — 定义一类插槽的规格（如"词汇插槽"是两孔圆插座）
-model SocketType {
-  id            String   @id @default(cuid())
-  code          String   @unique    // vocab_display/ui_render/data_input/action_handler/signal_channel/style_apply/config_read
-  name          String
-  description   String
-  pinCount      Int      @default(1) // 期望引脚数
-  pinDefs       String?  // JSON — 期望的引脚定义
-  icon          String?
-  color         String?
-  isSystem      Boolean  @default(true)
-  createdAt     DateTime @default(now())
-  sockets       Socket[]
-  compatRules   CompatibleRule[]
-}
-
-// 兼容规则 — 哪种插头型号可以插入哪种插槽型号（转接头定义）
-model CompatibleRule {
-  id             String   @id @default(cuid())
-  plugTypeCode   String                 // 插头型号code
-  socketTypeCode String                 // 插槽型号code
-  socketType     SocketType @relation(fields: [socketTypeCode], references: [code])
-  transform      String?  // JSON — 插头值→插槽值的转换规则
-  priority       Int      @default(0)  // 多个兼容时选最高优先级
-  description    String?  // 为什么能兼容
-  createdAt      DateTime @default(now())
-
-  @@unique([plugTypeCode, socketTypeCode])
-}
-
-// 插头 — 实际的插头实例（每个词汇项、UI组件都是一个插头）
-model Plug {
-  id            String   @id @default(cuid())
-  code          String   @unique       // 唯一标识（如 vocab_value_unit, ui_five_dim_radar）
-  name          String                 // 插头名称
-  description   String?
-  plugTypeCode  String                 // 插头型号
-  plugType      PlugType @relation(fields: [plugTypeCode], references: [code])
-  provider      String                 // 提供者模块（如 moral-vocabulary, dopamine, dexi）
-  pinValues     String?  // JSON — 引脚值（插头携带的数据/配置）
-  isActive      Boolean  @default(true)
-  sourceModule  String?  // 来源德系模块code
-  sourceId      String?  // 来源记录ID
-  version       Int      @default(1)   // 版本号，用于热更新
-  createdAt     DateTime @default(now())
-  updatedAt     DateTime @updatedAt
-  connections   PlugConnection[]
-}
-
-// 插槽 — 实际的插槽实例（每个显示位、渲染位都是一个插槽）
-model Socket {
-  id             String   @id @default(cuid())
-  code           String   @unique     // 唯一标识（如 display_value_unit, render_moral_radar）
-  name           String
-  description    String?
-  socketTypeCode String                // 插槽型号
-  socketType     SocketType @relation(fields: [socketTypeCode], references: [code])
-  consumer       String                // 消费者模块（如 moral-equity-page, ledger-page）
-  location       String?  // JSON — 插槽位置描述 {page, component, area, slot}
-  requiredPlugType String? // 强制要求某种型号的插头
-  isRequired     Boolean  @default(false) // 是否必须插入
-  allowMultiple  Boolean  @default(false) // 是否允许同时插入多个插头
-  isActive       Boolean  @default(true)
-  createdAt      DateTime @default(now())
-  updatedAt      DateTime @updatedAt
-  connections    PlugConnection[]
+// 插槽实例 — 每个显示位、渲染位、输入位等都是一个插槽
+model SlotModel {
+  id                String   @id @default(cuid())
+  code              String   @unique     // 唯一标识（如 display_value_unit, render_moral_radar）
+  name              String               // 插槽名称
+  description       String?              // 插槽描述
+  socketTypeCode    String               // 插槽型号: vocab_display/ui_render/data_input/action_handler/signal_channel/style_apply/config_read
+  consumer          String   @default("")// 消费者模块（如 moral-equity-page, ledger-page）
+  location          String?  // JSON — 插槽位置描述 {page, component, area, slot}
+  requiredPlugType  String?  // 强制要求某种型号的插头
+  isRequired        Boolean  @default(false) // 是否必须插入
+  allowMultiple     Boolean  @default(false) // 是否允许同时插入多个插头
+  version           String   @default("1.0.0")  // 版本号
+  interfaceSpec     String?  // JSON — 接口规范 PlugBoardInterface
+  capacity          Int      @default(1)  // 最大可接插头数
+  config            String?  // JSON — 配置参数
+  tags              String?  // 逗号分隔标签
+  status            String   @default("active")  // active/inactive/deprecated
+  createdAt         DateTime @default(now())
+  updatedAt         DateTime @updatedAt
+  connections       PlugConnection[]
 }
 
 // 插头连接 — 记录哪个插头插入了哪个插槽
 model PlugConnection {
   id              String    @id @default(cuid())
   plugId          String
-  plug            Plug      @relation(fields: [plugId], references: [id])
-  socketId        String
-  socket          Socket    @relation(fields: [socketId], references: [id])
+  plug            PlugModel @relation(fields: [plugId], references: [id])
+  slotId          String
+  slot            SlotModel @relation(fields: [slotId], references: [id])
   status          String    @default("active")  // active/disconnected/error
   transformResult String?   // JSON — 通过兼容规则transform后的最终值
   connectedAt     DateTime  @default(now())
   disconnectedAt  DateTime?
   signalChannel   String?   // 连接对应的神经信号频道
+}
+
+// 词汇插头型号 — 专用于词汇的插头规格定义
+model VocabPlugModel {
+  id          String   @id @default(cuid())
+  code        String   @unique
+  name        String
+  category    String                  // 词汇分类
+  vocabulary  String   // JSON — 词汇表 {word: meaning}
+  plugSpec    String   // JSON — 插头接口规范 PlugBoardInterface
+  slotSpec    String   // JSON — 插槽接口规范 PlugBoardInterface
+  neuralMap   String?  // JSON — 神经映射 {word: [channels]}
+  version     String   @default("1.0.0")
+  status      String   @default("active")
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+}
+
+// UI插头型号 — 专用于界面组件的插头规格定义
+model UIPlugModel {
+  id            String   @id @default(cuid())
+  code          String   @unique
+  name          String
+  uiType        String                  // card/form/list/chart/layout/dialog
+  template      String   // JSON — 组件模板配置
+  plugSpec      String   // JSON — 插头接口规范 PlugBoardInterface
+  slotSpec      String   // JSON — 插槽接口规范 PlugBoardInterface
+  styleSpec     String?  // JSON — 样式规格
+  behaviorSpec  String?  // JSON — 行为规格
+  neuralMap     String?  // JSON — 神经映射
+  version       String   @default("1.0.0")
+  status        String   @default("active")
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+}
+
+// 神经节点 — 神经系统信号路由的基础单元
+model NeuralNode {
+  id                String   @id @default(cuid())
+  code              String   @unique
+  name              String
+  description       String?
+  nodeType          String   @default("relay")    // relay/sensor/actuator/processor/gateway
+  activationFunction String  @default("relu")     // relu/sigmoid/tanh/step/linear
+  threshold         Float    @default(0.5)
+  inputs            String?  // JSON — 输入信号定义
+  outputs           String?  // JSON — 输出信号定义
+  connections       String?  // JSON — 节点连接信息
+  isActive          Boolean  @default(true)
+  createdAt         DateTime @default(now())
+  updatedAt         DateTime @updatedAt
 }

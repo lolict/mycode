@@ -2,21 +2,12 @@ import { NextResponse } from 'next/server'
 import { db } from '@/lib/db'
 import { SOCKET_TYPES, getCompatiblePlugTypes } from '@/lib/plug-socket-registry'
 
-// GET /api/plug-board/sockets — 获取所有插槽
-export async function GET(request: Request) {
+// GET /api/plugboard/instances/sockets — 获取所有插槽实例（从数据库）
+export async function GET() {
   try {
-    const { searchParams } = new URL(request.url)
-    const socketTypeCode = searchParams.get('socketType')
-    const consumer = searchParams.get('consumer')
-
-    const where: any = { isActive: true }
-    if (socketTypeCode) where.socketTypeCode = socketTypeCode
-    if (consumer) where.consumer = consumer
-
-    const sockets = await db.socket.findMany({
-      where,
+    const sockets = await db.slotModel.findMany({
+      where: { status: 'active' },
       include: {
-        socketType: true,
         connections: {
           where: { status: 'active' },
           include: { plug: true },
@@ -26,8 +17,16 @@ export async function GET(request: Request) {
     })
 
     const result = sockets.map(s => ({
-      ...s,
+      id: s.id,
+      code: s.code,
+      name: s.name,
+      description: s.description,
+      socketTypeCode: s.socketTypeCode,
+      consumer: s.consumer,
       location: s.location ? JSON.parse(s.location) : null,
+      isRequired: s.isRequired,
+      allowMultiple: s.allowMultiple,
+      version: s.version,
       socketTypeInfo: SOCKET_TYPES.find(st => st.code === s.socketTypeCode),
       compatiblePlugTypes: getCompatiblePlugTypes(s.socketTypeCode),
       connectedPlugs: s.connections.map(c => ({
@@ -42,10 +41,7 @@ export async function GET(request: Request) {
       })),
     }))
 
-    return NextResponse.json({
-      sockets: result,
-      socketTypes: SOCKET_TYPES,
-    })
+    return NextResponse.json({ sockets: result, socketTypes: SOCKET_TYPES })
   } catch (error) {
     console.error('获取插槽列表失败:', error)
     return NextResponse.json({ error: '获取插槽列表失败' }, { status: 500 })

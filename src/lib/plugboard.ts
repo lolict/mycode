@@ -1,25 +1,46 @@
 // ============================================
-// 插板型号架构 (PlugBoard Architecture)
+// 统一插板型号架构 (Unified PlugBoard Architecture)
 // 圆聚助残公益众筹平台 - 通用插件化模块系统
 // ============================================
 //
 // 核心理念：
 // 所有组件都是"可插拔"的，通过统一的接口标准
 // 实现"插头"和"插槽"的互插兼容。
+// 7种插头型号 + 7种插槽型号 + 11条兼容规则
 // 词汇型号、UI型号、插槽型号、插头型号
 // 类型不同、功能不同，但接口统一。
 // 方便神经网络的全能应用。
 // ============================================
 
+import {
+  PLUG_TYPES, SOCKET_TYPES, COMPATIBLE_RULES,
+  DEFAULT_PLUGS, DEFAULT_SOCKETS, DEFAULT_CONNECTIONS,
+  isCompatible, getCompatiblePlugTypes, getCompatibleSocketTypes,
+  isDirectMatch, isCrossTypeCompat, getPlugBoardStats,
+  type PlugTypeDef, type SocketTypeDef, type CompatibleRuleDef,
+  type PlugDef, type SocketDef, type DefaultConnection,
+} from './plug-socket-registry'
+
+// Re-export from plug-socket-registry for convenience
+export {
+  PLUG_TYPES, SOCKET_TYPES, COMPATIBLE_RULES,
+  DEFAULT_PLUGS, DEFAULT_SOCKETS, DEFAULT_CONNECTIONS,
+  isCompatible, getCompatiblePlugTypes, getCompatibleSocketTypes,
+  isDirectMatch, isCrossTypeCompat, getPlugBoardStats,
+  type PlugTypeDef, type SocketTypeDef, type CompatibleRuleDef,
+  type PlugDef, type SocketDef, type DefaultConnection,
+}
+
 // === 接口规范 ===
 
-export type PlugType = 'vocab' | 'ui' | 'slot' | 'plug' | 'neural'
+export type PlugTypeCode = 'vocab' | 'ui' | 'data' | 'action' | 'signal' | 'style' | 'config'
+export type SocketTypeCode = 'vocab_display' | 'ui_render' | 'data_input' | 'action_handler' | 'signal_channel' | 'style_apply' | 'config_read'
 
 export interface PlugBoardInterface {
   /** 接口版本 */
   version: string
   /** 接口类型 */
-  type: PlugType
+  type: PlugTypeCode | SocketTypeCode | 'slot' | 'plug' | 'neural'
   /** 输入端口定义 */
   inputs: PortDef[]
   /** 输出端口定义 */
@@ -51,14 +72,17 @@ export interface ConfigDef {
 export interface PlugModelDef {
   code: string
   name: string
-  plugType: PlugType
+  plugType: PlugTypeCode
   version: string
   description: string
   interfaceSpec: PlugBoardInterface
+  provider?: string
+  pinValues?: Record<string, unknown>
   config?: Record<string, unknown>
   dependencies?: string[]
   tags?: string[]
   author?: string
+  sourceModule?: string
 }
 
 // === 插槽型号 (Slot Model) ===
@@ -66,12 +90,16 @@ export interface PlugModelDef {
 export interface SlotModelDef {
   code: string
   name: string
-  slotType: string
+  slotType: SocketTypeCode
   version: string
   description: string
   interfaceSpec: PlugBoardInterface
   capacity: number
-  requiredType?: PlugType
+  requiredType?: PlugTypeCode
+  consumer?: string
+  location?: Record<string, unknown>
+  isRequired?: boolean
+  allowMultiple?: boolean
   config?: Record<string, unknown>
   tags?: string[]
 }
@@ -104,7 +132,21 @@ export interface UIPlugModelDef {
   version: string
 }
 
-// === 插接兼容性校验 ===
+// === 神经节点 ===
+
+export interface NeuralNodeDef {
+  code: string
+  name: string
+  description?: string
+  nodeType: 'relay' | 'sensor' | 'actuator' | 'processor' | 'gateway'
+  activationFunction: 'relu' | 'sigmoid' | 'tanh' | 'step' | 'linear'
+  threshold: number
+  inputs?: Record<string, unknown>
+  outputs?: Record<string, unknown>
+  connections?: Record<string, unknown>
+}
+
+// === 插接兼容性校验（双层检查：规则层 + 接口层） ===
 
 export function checkCompatibility(plug: PlugBoardInterface, slot: PlugBoardInterface): {
   compatible: boolean
@@ -121,7 +163,6 @@ export function checkCompatibility(plug: PlugBoardInterface, slot: PlugBoardInte
 
   // 类型匹配
   if (slot.type !== 'slot' && plug.type !== slot.type) {
-    // 插槽可以接受任何类型，但如果指定了 requiredType 则需要匹配
     warnings.push(`类型不同: 插头${plug.type} vs 插槽${slot.type}`)
   }
 
@@ -145,6 +186,58 @@ export function checkCompatibility(plug: PlugBoardInterface, slot: PlugBoardInte
 
   return {
     compatible: errors.length === 0,
+    errors,
+    warnings,
+  }
+}
+
+/**
+ * 双层兼容性检查：先检查型号规则层，再检查接口层
+ */
+export function checkFullCompatibility(
+  plugTypeCode: string,
+  socketTypeCode: string,
+  plugSpec?: PlugBoardInterface,
+  slotSpec?: PlugBoardInterface,
+): {
+  compatible: boolean
+  ruleCompatible: boolean
+  interfaceCompatible: boolean
+  ruleInfo?: CompatibleRuleDef
+  errors: string[]
+  warnings: string[]
+} {
+  const errors: string[] = []
+  const warnings: string[] = []
+
+  // 第一层：型号规则检查
+  const ruleInfo = COMPATIBLE_RULES.find(
+    r => r.plugTypeCode === plugTypeCode && r.socketTypeCode === socketTypeCode
+  )
+  const ruleCompatible = !!ruleInfo
+
+  if (!ruleCompatible) {
+    errors.push(`${plugTypeCode}型号插头与${socketTypeCode}型号插槽没有兼容规则`)
+  }
+
+  if (ruleInfo && isCrossTypeCompat(plugTypeCode, socketTypeCode)) {
+    warnings.push(`跨型号兼容：${ruleInfo.description}（优先级: ${ruleInfo.priority}）`)
+  }
+
+  // 第二层：接口规格检查（如果提供了接口定义）
+  let interfaceCompatible = true
+  if (plugSpec && slotSpec) {
+    const ifaceResult = checkCompatibility(plugSpec, slotSpec)
+    interfaceCompatible = ifaceResult.compatible
+    errors.push(...ifaceResult.errors)
+    warnings.push(...ifaceResult.warnings)
+  }
+
+  return {
+    compatible: ruleCompatible && interfaceCompatible,
+    ruleCompatible,
+    interfaceCompatible,
+    ruleInfo,
     errors,
     warnings,
   }
@@ -350,7 +443,7 @@ export const PRESET_SLOT_MODELS: SlotModelDef[] = [
   {
     code: 'SLOT-PAGE-001',
     name: '页面插槽',
-    slotType: 'page',
+    slotType: 'ui_render',
     version: '1.0.0',
     description: '页面级插槽，可接收UI型插头渲染完整页面',
     interfaceSpec: {
@@ -374,7 +467,7 @@ export const PRESET_SLOT_MODELS: SlotModelDef[] = [
   {
     code: 'SLOT-SERVICE-001',
     name: '服务插槽',
-    slotType: 'service',
+    slotType: 'data_input',
     version: '1.0.0',
     description: '服务级插槽，可接收词汇型/神经型插头提供数据处理',
     interfaceSpec: {
@@ -395,7 +488,7 @@ export const PRESET_SLOT_MODELS: SlotModelDef[] = [
   {
     code: 'SLOT-NEURAL-001',
     name: '神经节点插槽',
-    slotType: 'neural',
+    slotType: 'signal_channel',
     version: '1.0.0',
     description: '神经网络插槽，可接收任意型号插头进行信号传递',
     interfaceSpec: {
@@ -471,12 +564,12 @@ export const PRESET_PLUG_MODELS: PlugModelDef[] = [
   {
     code: 'PLUG-NEURAL-001',
     name: '神经信号插头',
-    plugType: 'neural',
+    plugType: 'signal',
     version: '1.0.0',
     description: '提供神经网络信号传递能力，可插入任何兼容插槽',
     interfaceSpec: {
       version: '1.0.0',
-      type: 'neural',
+      type: 'signal',
       inputs: [
         { name: 'signal', dataType: 'any', required: true, description: '输入信号' },
       ],
@@ -494,91 +587,144 @@ export const PRESET_PLUG_MODELS: PlugModelDef[] = [
   },
 ]
 
-// === 插板注册表 ===
+// === 预定义神经节点 ===
+
+export const PRESET_NEURAL_NODES: NeuralNodeDef[] = [
+  {
+    code: 'NEURAL-RELAY-001',
+    name: '主信号中继',
+    description: '系统主信号中继节点，负责信号的分发与路由',
+    nodeType: 'relay',
+    activationFunction: 'linear',
+    threshold: 0.0,
+    inputs: { channels: ['*'] },
+    outputs: { channels: ['plug:connected', 'plug:disconnected', 'plug:updated'] },
+  },
+  {
+    code: 'NEURAL-SENSOR-001',
+    name: '道德行为传感器',
+    description: '感知用户的道德行为并发出信号',
+    nodeType: 'sensor',
+    activationFunction: 'step',
+    threshold: 0.5,
+    inputs: { channels: ['action:donate', 'action:help', 'action:volunteer'] },
+    outputs: { channels: ['dopamine:trigger'] },
+  },
+  {
+    code: 'NEURAL-ACTUATOR-001',
+    name: '多巴胺执行器',
+    description: '接收信号后执行多巴胺分泌操作',
+    nodeType: 'actuator',
+    activationFunction: 'relu',
+    threshold: 0.3,
+    inputs: { channels: ['dopamine:trigger'] },
+    outputs: { channels: ['equity:update', 'streak:update'] },
+  },
+]
+
+// === 插板注册表（统一版） ===
 
 export class PlugBoardRegistry {
   private plugs: Map<string, PlugModelDef> = new Map()
   private slots: Map<string, SlotModelDef> = new Map()
   private vocabModels: Map<string, VocabPlugModelDef> = new Map()
   private uiModels: Map<string, UIPlugModelDef> = new Map()
+  private neuralNodes: Map<string, NeuralNodeDef> = new Map()
 
   constructor() {
-    // 注册预定义型号
+    // 注册预定义插头型号
     for (const plug of PRESET_PLUG_MODELS) {
       this.plugs.set(plug.code, plug)
     }
+    // 注册预定义插槽型号
     for (const slot of PRESET_SLOT_MODELS) {
       this.slots.set(slot.code, slot)
     }
+    // 注册预定义词汇型号
     for (const vocab of PRESET_VOCAB_MODELS) {
       this.vocabModels.set(vocab.code, vocab)
     }
+    // 注册预定义UI型号
     for (const ui of PRESET_UI_MODELS) {
       this.uiModels.set(ui.code, ui)
     }
+    // 注册预定义神经节点
+    for (const node of PRESET_NEURAL_NODES) {
+      this.neuralNodes.set(node.code, node)
+    }
   }
 
-  // 注册插头
+  // --- 注册方法 ---
+
   registerPlug(plug: PlugModelDef): void {
     this.plugs.set(plug.code, plug)
   }
 
-  // 注册插槽
   registerSlot(slot: SlotModelDef): void {
     this.slots.set(slot.code, slot)
   }
 
-  // 注册词汇型号
   registerVocabModel(vocab: VocabPlugModelDef): void {
     this.vocabModels.set(vocab.code, vocab)
   }
 
-  // 注册UI型号
   registerUIModel(ui: UIPlugModelDef): void {
     this.uiModels.set(ui.code, ui)
   }
 
-  // 获取插头
+  registerNeuralNode(node: NeuralNodeDef): void {
+    this.neuralNodes.set(node.code, node)
+  }
+
+  // --- 获取方法 ---
+
   getPlug(code: string): PlugModelDef | undefined {
     return this.plugs.get(code)
   }
 
-  // 获取插槽
   getSlot(code: string): SlotModelDef | undefined {
     return this.slots.get(code)
   }
 
-  // 获取词汇型号
   getVocabModel(code: string): VocabPlugModelDef | undefined {
     return this.vocabModels.get(code)
   }
 
-  // 获取UI型号
   getUIModel(code: string): UIPlugModelDef | undefined {
     return this.uiModels.get(code)
   }
 
-  // 列出所有插头
+  getNeuralNode(code: string): NeuralNodeDef | undefined {
+    return this.neuralNodes.get(code)
+  }
+
+  // --- 列表方法 ---
+
   listPlugs(): PlugModelDef[] {
     return Array.from(this.plugs.values())
   }
 
-  // 列出所有插槽
   listSlots(): SlotModelDef[] {
     return Array.from(this.slots.values())
   }
 
-  // 列出所有词汇型号
   listVocabModels(): VocabPlugModelDef[] {
     return Array.from(this.vocabModels.values())
   }
 
-  // 列出所有UI型号
   listUIModels(): UIPlugModelDef[] {
     return Array.from(this.uiModels.values())
   }
 
-  // 尝试连接插头到插槽
+  listNeuralNodes(): NeuralNodeDef[] {
+    return Array.from(this.neuralNodes.values())
+  }
+
+  // --- 连接与兼容性方法 ---
+
+  /**
+   * 尝试连接插头到插槽（双层检查：规则层+接口层）
+   */
   connect(plugCode: string, slotCode: string): {
     success: boolean
     errors: string[]
@@ -590,43 +736,78 @@ export class PlugBoardRegistry {
     if (!plug) return { success: false, errors: [`插头 ${plugCode} 不存在`], warnings: [] }
     if (!slot) return { success: false, errors: [`插槽 ${slotCode} 不存在`], warnings: [] }
 
-    // 检查类型兼容性
-    if (slot.requiredType && plug.plugType !== slot.requiredType) {
-      return { success: false, errors: [`插头类型 ${plug.plugType} 不匹配插槽要求的 ${slot.requiredType}`], warnings: [] }
-    }
+    // 使用双层兼容性检查
+    const result = checkFullCompatibility(
+      plug.plugType,
+      slot.slotType,
+      plug.interfaceSpec,
+      slot.interfaceSpec,
+    )
 
-    // 检查接口兼容性
-    const compat = checkCompatibility(plug.interfaceSpec, slot.interfaceSpec)
     return {
-      success: compat.compatible,
-      errors: compat.errors,
-      warnings: compat.warnings,
+      success: result.compatible,
+      errors: result.errors,
+      warnings: result.warnings,
     }
   }
 
-  // 查找与指定插头兼容的所有插槽
+  /**
+   * 通过型号规则检查兼容性（用于数据库中的插头/插槽实例）
+   */
+  connectByType(plugTypeCode: string, socketTypeCode: string): {
+    success: boolean
+    errors: string[]
+    warnings: string[]
+    ruleInfo?: CompatibleRuleDef
+  } {
+    const result = checkFullCompatibility(plugTypeCode, socketTypeCode)
+    return {
+      success: result.compatible,
+      errors: result.errors,
+      warnings: result.warnings,
+      ruleInfo: result.ruleInfo,
+    }
+  }
+
+  /**
+   * 查找与指定插头兼容的所有插槽
+   */
   findCompatibleSlots(plugCode: string): { slot: SlotModelDef; compatible: boolean; warnings: string[] }[] {
     const plug = this.plugs.get(plugCode)
     if (!plug) return []
 
     return this.listSlots().map(slot => {
-      const result = checkCompatibility(plug.interfaceSpec, slot.interfaceSpec)
+      const result = checkFullCompatibility(plug.plugType, slot.slotType, plug.interfaceSpec, slot.interfaceSpec)
       return { slot, compatible: result.compatible, warnings: result.warnings }
     })
   }
 
-  // 查找与指定插槽兼容的所有插头
+  /**
+   * 查找与指定插槽兼容的所有插头
+   */
   findCompatiblePlugs(slotCode: string): { plug: PlugModelDef; compatible: boolean; warnings: string[] }[] {
     const slot = this.slots.get(slotCode)
     if (!slot) return []
 
     return this.listPlugs().map(plug => {
-      if (slot.requiredType && plug.plugType !== slot.requiredType) {
-        return { plug, compatible: false, warnings: [`类型不匹配`] }
-      }
-      const result = checkCompatibility(plug.interfaceSpec, slot.interfaceSpec)
+      const result = checkFullCompatibility(plug.plugType, slot.slotType, plug.interfaceSpec, slot.interfaceSpec)
       return { plug, compatible: result.compatible, warnings: result.warnings }
     })
+  }
+
+  /**
+   * 获取插板系统完整统计
+   */
+  getStats() {
+    const registryStats = getPlugBoardStats()
+    return {
+      ...registryStats,
+      presetPlugs: this.plugs.size,
+      presetSlots: this.slots.size,
+      presetVocabModels: this.vocabModels.size,
+      presetUIModels: this.uiModels.size,
+      presetNeuralNodes: this.neuralNodes.size,
+    }
   }
 }
 

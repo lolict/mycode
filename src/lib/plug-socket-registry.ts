@@ -1,5 +1,5 @@
 /**
- * 插板系统 — Plug-Socket Board Registry
+ * 插板系统 — Unified Plug-Socket Board Registry
  *
  * 一切资源都是插头/插槽，型号匹配才能插入
  *
@@ -16,6 +16,11 @@
  * - 插头拔出插槽 → 神经信号 channel: 'plug:disconnected'
  * - 插头值变化 → 神经信号 channel: 'plug:updated'
  * - 插槽查询当前值 → 神经信号 channel: 'socket:query'
+ *
+ * 统一架构说明：
+ * - 本文件提供7种插头型号、7种插槽型号、11条兼容规则
+ * - 默认17个插头实例、9个插槽实例、9个默认连接
+ * - 与 plugboard.ts 的 PlugBoardRegistry 完全集成
  */
 
 // ============================================
@@ -713,4 +718,28 @@ export function getPlugBoardStats() {
       count: DEFAULT_SOCKETS.filter(s => s.socketTypeCode === st.code).length,
     })),
   }
+}
+
+/**
+ * 判断兼容规则是否为直接匹配（同型号）
+ */
+export function isDirectMatch(plugTypeCode: string, socketTypeCode: string): boolean {
+  return plugTypeCode === socketTypeCode.split('_')[0]
+}
+
+/**
+ * 判断兼容规则是否为跨型号兼容
+ */
+export function isCrossTypeCompat(plugTypeCode: string, socketTypeCode: string): boolean {
+  return isCompatible(plugTypeCode, socketTypeCode) && !isDirectMatch(plugTypeCode, socketTypeCode)
+}
+
+/**
+ * 获取兼容规则的优先级
+ */
+export function getCompatPriority(plugTypeCode: string, socketTypeCode: string): number {
+  const rule = COMPATIBLE_RULES.find(
+    r => r.plugTypeCode === plugTypeCode && r.socketTypeCode === socketTypeCode
+  )
+  return rule?.priority ?? 0
 }
