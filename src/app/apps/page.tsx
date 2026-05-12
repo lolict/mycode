@@ -279,6 +279,20 @@ export default function AppsCenter() {
         priority: 26,
         recentlyUsed: recentlyUsedApps.includes('time-ledger'),
         isFavorite: !!favorites['time-ledger']
+      },
+      {
+        id: 'living-system',
+        name: '活体系统监控',
+        description: '神经系统+消化排泄+多巴胺三大系统实时监控面板',
+        icon: <Activity className="h-8 w-8" />,
+        color: 'bg-teal-500',
+        category: 'infrastructure',
+        status: 'active',
+        path: '/living',
+        features: ['神经信号', '错误排泄', '多巴胺评分', '五维道德'],
+        priority: 6,
+        recentlyUsed: recentlyUsedApps.includes('living-system'),
+        isFavorite: !!favorites['living-system']
       }
     ]
 

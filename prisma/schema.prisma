@@ -219,3 +219,43 @@ model IdeaTagRelation {
 
   @@unique([ideaId, tagId])
 }
+
+// ============================================
+// 活体架构系统 - Living Architecture
+// ============================================
+
+// 错误日志 - 消化系统的排泄物（肛门排出的记录）
+model ErrorLog {
+  id          String   @id @default(cuid())
+  grade       String   // noise=放屁, known=正常排便, critical=拉肚子
+  message     String   // 人类可读的错误描述（不暴露技术细节）
+  raw         String?  // 原始错误信息（仅开发环境可见）
+  source      String   // 发生源
+  handled     Boolean  @default(false)
+  suggestion  String?  // 恢复建议
+  userId      String?  // 关联用户
+  extra       String?  // JSON格式附加数据
+  createdAt   DateTime @default(now())
+}
+
+// 多巴胺记录 - 做善事后分泌的奖励
+model DopamineRecord {
+  id              String   @id @default(cuid())
+  userId          String   // 行为主体
+  actionType      String   // donate/create_project/volunteer/help/share/comment/verify
+  actionDesc      String?  // 行为描述
+  targetId        String?  // 行为对象（项目ID等）
+
+  // 五维评分
+  kindness        Float    @default(0)    // 善良 30%
+  compassion      Float    @default(0)    // 恻隐 25%
+  justice         Float    @default(0)    // 正义 20%
+  dedication      Float    @default(0)    // 奉献 15%
+  severity        Float    @default(0)    // 严重度 10%（反向）
+  totalScore      Float    @default(0)    // 加权总分
+
+  dopamineValue   Float    @default(0)    // 多巴胺值 = 总分 * 行为权重
+  actionData      String?  // JSON格式行为数据
+
+  createdAt       DateTime @default(now())
+}
