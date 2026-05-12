@@ -1,5 +1,10 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { db } from '@/lib/db'
+import { getDigestiveSystem } from '@/core/v2/digestive'
+import { persistError } from '@/core/v2/digestive/persist'
+import { getDopamineEngine } from '@/core/v2/dopamine'
+import { persistDopamine } from '@/core/v2/dopamine/persist'
+import { getNervousSystem } from '@/core/v2/nervous'
 
 export async function GET(request: NextRequest) {
   try {
@@ -81,9 +86,11 @@ export async function GET(request: NextRequest) {
       }
     })
   } catch (error) {
-    console.error('Failed to fetch reality records:', error)
+    const digestive = getDigestiveSystem()
+    const digested = digestive.digest(error, { source: 'reality-ledger-api', operation: 'fetch-reality-records' })
+    persistError(digested).catch(() => {})
     return NextResponse.json(
-      { error: 'Failed to fetch reality records' },
+      { error: digested.message, ...(digested.suggestion ? { suggestion: digested.suggestion } : {}) },
       { status: 500 }
     )
   }
@@ -216,11 +223,31 @@ export async function POST(request: NextRequest) {
       })
     }
 
+    const dopamine = getDopamineEngine()
+    const dopamineRecord = dopamine.release({
+      type: 'help',
+      description: 'User created a reality ledger record',
+      userId: userId,
+      targetId: realityRecord.id,
+      data: {},
+      timestamp: Date.now(),
+    })
+    await persistDopamine(dopamineRecord)
+
+    getNervousSystem().emit({
+      channel: 'action:help',
+      from: 'reality-ledger-api',
+      payload: { type: 'help', userId, targetId: realityRecord.id },
+      priority: 5,
+    })
+
     return NextResponse.json(realityRecord, { status: 201 })
   } catch (error) {
-    console.error('Failed to create reality record:', error)
+    const digestive = getDigestiveSystem()
+    const digested = digestive.digest(error, { source: 'reality-ledger-api', operation: 'create-reality-record' })
+    persistError(digested).catch(() => {})
     return NextResponse.json(
-      { error: 'Failed to create reality record' },
+      { error: digested.message, ...(digested.suggestion ? { suggestion: digested.suggestion } : {}) },
       { status: 500 }
     )
   }

@@ -1,5 +1,10 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { db } from '@/lib/db'
+import { getDigestiveSystem } from '@/core/v2/digestive'
+import { persistError } from '@/core/v2/digestive/persist'
+import { getDopamineEngine } from '@/core/v2/dopamine'
+import { persistDopamine } from '@/core/v2/dopamine/persist'
+import { getNervousSystem } from '@/core/v2/nervous'
 
 export async function GET(request: NextRequest) {
   try {
@@ -81,9 +86,11 @@ export async function GET(request: NextRequest) {
       }
     })
   } catch (error) {
-    console.error('Failed to fetch dream records:', error)
+    const digestive = getDigestiveSystem()
+    const digested = digestive.digest(error, { source: 'dream-ledger-api', operation: 'fetch-dream-records' })
+    persistError(digested).catch(() => {})
     return NextResponse.json(
-      { error: 'Failed to fetch dream records' },
+      { error: digested.message, ...(digested.suggestion ? { suggestion: digested.suggestion } : {}) },
       { status: 500 }
     )
   }
@@ -214,11 +221,31 @@ export async function POST(request: NextRequest) {
       })
     }
 
+    const dopamine = getDopamineEngine()
+    const dopamineRecord = dopamine.release({
+      type: 'help',
+      description: 'User created a dream ledger record',
+      userId: userId,
+      targetId: dreamRecord.id,
+      data: {},
+      timestamp: Date.now(),
+    })
+    await persistDopamine(dopamineRecord)
+
+    getNervousSystem().emit({
+      channel: 'action:help',
+      from: 'dream-ledger-api',
+      payload: { type: 'help', userId, targetId: dreamRecord.id },
+      priority: 5,
+    })
+
     return NextResponse.json(dreamRecord, { status: 201 })
   } catch (error) {
-    console.error('Failed to create dream record:', error)
+    const digestive = getDigestiveSystem()
+    const digested = digestive.digest(error, { source: 'dream-ledger-api', operation: 'create-dream-record' })
+    persistError(digested).catch(() => {})
     return NextResponse.json(
-      { error: 'Failed to create dream record' },
+      { error: digested.message, ...(digested.suggestion ? { suggestion: digested.suggestion } : {}) },
       { status: 500 }
     )
   }

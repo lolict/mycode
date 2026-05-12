@@ -1,5 +1,10 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { db } from '@/lib/db'
+import { getDigestiveSystem } from '@/core/v2/digestive'
+import { persistError } from '@/core/v2/digestive/persist'
+import { getDopamineEngine } from '@/core/v2/dopamine'
+import { persistDopamine } from '@/core/v2/dopamine/persist'
+import { getNervousSystem } from '@/core/v2/nervous'
 
 export async function GET(
   request: NextRequest,
@@ -24,9 +29,11 @@ export async function GET(
 
     return NextResponse.json({ comments })
   } catch (error) {
-    console.error('Failed to fetch comments:', error)
+    const digestive = getDigestiveSystem()
+    const digested = digestive.digest(error, { source: 'comments-api', operation: 'fetch-comments' })
+    persistError(digested).catch(() => {})
     return NextResponse.json(
-      { error: 'Failed to fetch comments' },
+      { error: digested.message, ...(digested.suggestion ? { suggestion: digested.suggestion } : {}) },
       { status: 500 }
     )
   }
@@ -102,11 +109,31 @@ export async function POST(
       }
     })
 
+    const dopamine = getDopamineEngine()
+    const dopamineRecord = dopamine.release({
+      type: 'comment',
+      description: 'User posted a comment',
+      userId: finalAuthorId,
+      targetId: id,
+      data: {},
+      timestamp: Date.now(),
+    })
+    await persistDopamine(dopamineRecord)
+
+    getNervousSystem().emit({
+      channel: 'action:comment',
+      from: 'comments-api',
+      payload: { type: 'comment', userId: finalAuthorId, targetId: id },
+      priority: 5,
+    })
+
     return NextResponse.json(comment, { status: 201 })
   } catch (error) {
-    console.error('Failed to create comment:', error)
+    const digestive = getDigestiveSystem()
+    const digested = digestive.digest(error, { source: 'comments-api', operation: 'create-comment' })
+    persistError(digested).catch(() => {})
     return NextResponse.json(
-      { error: 'Failed to create comment' },
+      { error: digested.message, ...(digested.suggestion ? { suggestion: digested.suggestion } : {}) },
       { status: 500 }
     )
   }

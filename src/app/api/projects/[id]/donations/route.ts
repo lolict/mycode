@@ -1,5 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { db } from '@/lib/db'
+import { getDigestiveSystem } from '@/core/v2/digestive'
+import { persistError } from '@/core/v2/digestive/persist'
 
 export async function GET(
   request: NextRequest,
@@ -24,9 +26,11 @@ export async function GET(
 
     return NextResponse.json({ donations })
   } catch (error) {
-    console.error('Failed to fetch donations:', error)
+    const digestive = getDigestiveSystem()
+    const digested = digestive.digest(error, { source: 'donations-api', operation: 'fetch-donations' })
+    persistError(digested).catch(() => {})
     return NextResponse.json(
-      { error: 'Failed to fetch donations' },
+      { error: digested.message, ...(digested.suggestion ? { suggestion: digested.suggestion } : {}) },
       { status: 500 }
     )
   }

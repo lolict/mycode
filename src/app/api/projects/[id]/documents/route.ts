@@ -1,5 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { db } from '@/lib/db'
+import { getDigestiveSystem } from '@/core/v2/digestive'
+import { persistError } from '@/core/v2/digestive/persist'
 
 export async function GET(
   request: NextRequest,
@@ -28,9 +30,11 @@ export async function GET(
 
     return NextResponse.json({ documents })
   } catch (error) {
-    console.error('Failed to fetch documents:', error)
+    const digestive = getDigestiveSystem()
+    const digested = digestive.digest(error, { source: 'documents-api', operation: 'fetch-documents' })
+    persistError(digested).catch(() => {})
     return NextResponse.json(
-      { error: 'Failed to fetch documents' },
+      { error: digested.message, ...(digested.suggestion ? { suggestion: digested.suggestion } : {}) },
       { status: 500 }
     )
   }
@@ -75,9 +79,11 @@ export async function POST(
 
     return NextResponse.json(document, { status: 201 })
   } catch (error) {
-    console.error('Failed to create document:', error)
+    const digestive = getDigestiveSystem()
+    const digested = digestive.digest(error, { source: 'documents-api', operation: 'create-document' })
+    persistError(digested).catch(() => {})
     return NextResponse.json(
-      { error: 'Failed to create document' },
+      { error: digested.message, ...(digested.suggestion ? { suggestion: digested.suggestion } : {}) },
       { status: 500 }
     )
   }
