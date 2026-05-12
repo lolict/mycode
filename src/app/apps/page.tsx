@@ -9,11 +9,11 @@ import { EnhancedAppGrid } from '@/components/layout/EnhancedAppGrid'
 import { ErrorBoundary } from '@/components/ui/error-boundary'
 import { SuspenseBoundary } from '@/components/ui/suspense-boundary'
 import { useAppStore, useAppActions } from '@/lib/store'
-import { 
-  Heart, 
-  Users, 
-  Target, 
-  BookOpen, 
+import {
+  Heart,
+  Users,
+  Target,
+  BookOpen,
   Star,
   Activity,
   Brain,
@@ -35,7 +35,8 @@ import {
   TrendingUp,
   ArrowRight,
   Grid3X3,
-  Eye
+  Eye,
+  Sparkles
 } from 'lucide-react'
 
 interface AppInfo {
@@ -279,6 +280,22 @@ export default function AppsCenter() {
         priority: 26,
         recentlyUsed: recentlyUsedApps.includes('time-ledger'),
         isFavorite: !!favorites['time-ledger']
+      },
+
+      // 德系五十四模块 - 核心入口
+      {
+        id: 'dexi',
+        name: '德系五十四模块',
+        description: '德系54模块功能矩阵，覆盖基础设施、出行物流、经济金融、医疗健康等十大领域',
+        icon: <Sparkles className="h-8 w-8" />,
+        color: 'bg-gradient-to-r from-purple-600 to-pink-600',
+        category: 'core',
+        status: 'active',
+        path: '/dexi',
+        features: ['54个模块', '10大领域', '以德为名', '助残为本'],
+        priority: 0,
+        recentlyUsed: recentlyUsedApps.includes('dexi'),
+        isFavorite: !!favorites['dexi']
       }
     ]
 
@@ -291,6 +308,16 @@ export default function AppsCenter() {
     { id: 'ledger', name: '专项账本', icon: <BookOpen className="h-4 w-4" /> },
     { id: 'community', name: '共同体账户', icon: <Users className="h-4 w-4" /> },
     { id: 'infrastructure', name: '基础设施', icon: <TrendingUp className="h-4 w-4" /> }
+  ]
+
+  // 德系模块快捷入口 - 在头部区域显示
+  const dexiFeaturedModules = [
+    { name: '德器·辅具', desc: '辅具管理', color: 'bg-slate-500' },
+    { name: '德捐·捐赠', desc: '捐赠管理', color: 'bg-amber-500' },
+    { name: '德诊·诊断', desc: '远程医疗', color: 'bg-red-500' },
+    { name: '德急·急救', desc: '应急响应', color: 'bg-orange-500' },
+    { name: '德创·创业', desc: '创新创业', color: 'bg-cyan-500' },
+    { name: '德书·阅读', desc: '无障碍阅读', color: 'bg-violet-500' },
   ]
 
   // 处理应用点击 - 记录最近使用
@@ -331,6 +358,38 @@ export default function AppsCenter() {
                 智能合约
               </Button>
             </div>
+          </div>
+        </div>
+      </section>
+
+      {/* 德系模块快捷入口 */}
+      <section className="py-6 bg-white border-b">
+        <div className="container mx-auto px-4">
+          <div className="flex items-center justify-between mb-4">
+            <div className="flex items-center gap-2">
+              <Sparkles className="h-5 w-5 text-purple-600" />
+              <h2 className="text-lg font-bold text-gray-900">德系五十四模块</h2>
+              <Badge className="bg-purple-100 text-purple-700">54</Badge>
+            </div>
+            <Link href="/dexi">
+              <Button variant="outline" size="sm" className="border-purple-300 text-purple-600 hover:bg-purple-50">
+                查看全部模块
+                <ArrowRight className="h-4 w-4 ml-1" />
+              </Button>
+            </Link>
+          </div>
+          <div className="grid grid-cols-3 md:grid-cols-6 gap-3">
+            {dexiFeaturedModules.map((mod, i) => (
+              <Link key={i} href="/dexi" className="group">
+                <div className="text-center p-3 rounded-xl hover:bg-purple-50 transition-colors cursor-pointer">
+                  <div className={`mx-auto mb-2 p-2.5 rounded-xl ${mod.color} text-white w-12 h-12 flex items-center justify-center group-hover:scale-110 transition-transform`}>
+                    <span className="text-lg font-bold">{mod.name.charAt(1)}</span>
+                  </div>
+                  <p className="text-xs font-medium text-gray-800 truncate">{mod.name}</p>
+                  <p className="text-xs text-gray-500 truncate">{mod.desc}</p>
+                </div>
+              </Link>
+            ))}
           </div>
         </div>
       </section>

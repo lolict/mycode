@@ -62,3 +62,67 @@ model Donation {
   donorId   String
   donor     User     @relation(fields: [donorId], references: [id])
 }
+
+model DexiModule {
+  id          String   @id @default(cuid())
+  code        String   @unique
+  name        String
+  fullName    String
+  category    String
+  description String
+  icon        String
+  color       String
+  features    String   // JSON string
+  status      String   @default("active")
+  priority    Int      @default(50)
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+  records     DexiRecord[]
+}
+
+model DexiRecord {
+  id         String   @id @default(cuid())
+  moduleCode String
+  module     DexiModule @relation(fields: [moduleCode], references: [code])
+  userId     String?
+  title      String
+  content    String   // JSON string - flexible per module
+  value      Float    @default(0)
+  status     String   @default("active")
+  createdAt  DateTime @default(now())
+  updatedAt  DateTime @updatedAt
+}
+
+model NamedLedger {
+  id          String   @id @default(cuid())
+  ledgerType  String
+  content     String
+  value       Float    @default(0)
+  status      String   @default("pending")
+  userId      String?
+  specialData String?  // JSON string
+  tags        String?  // JSON string
+  privacy     String   @default("private")
+  projectId   String?
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+}
+
+model Comment {
+  id        String   @id @default(cuid())
+  content   String
+  projectId String
+  authorId  String
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+}
+
+model ProjectDocument {
+  id        String   @id @default(cuid())
+  docType   String
+  content   String
+  isPublic  Boolean  @default(false)
+  projectId String
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+}

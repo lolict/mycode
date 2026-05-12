@@ -459,6 +459,9 @@ interface SynapseSignal {
     timestamp: Date
     ttl?: number
     correlationId?: string
+    routed?: boolean
+    originalTarget?: string
+    routingTimestamp?: Date
   }
 }
 

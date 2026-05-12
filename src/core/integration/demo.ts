@@ -258,11 +258,11 @@ export class CoreSystemDemo {
     console.log('================')
 
     // 错误封装器统计
-    const errorStats = this.errorContainer.getStats()
+    const errorStats = this.errorContainer.getStats() as any
     console.log('🛡️  错误封装器:')
-    console.log(`   - 边界守护: ${errorStats.boundaries.totalGuards} 次`)
-    console.log(`   - 错误捕获: ${errorStats.traps.totalCaptures} 次`)
-    console.log(`   - 错误隔离: ${errorStats.isolators.totalIsolations} 次`)
+    console.log(`   - 边界守护: ${errorStats.boundaries?.totalGuards || 0} 次`)
+    console.log(`   - 错误捕获: ${errorStats.traps?.totalCaptures || 0} 次`)
+    console.log(`   - 错误隔离: ${errorStats.isolators?.totalIsolations || 0} 次`)
 
     // 奖励器统计
     const rewardStats = this.rewardContainer.getStats()

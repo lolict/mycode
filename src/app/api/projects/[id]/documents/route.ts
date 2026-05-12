@@ -3,14 +3,15 @@ import { db } from '@/lib/db'
 
 export async function GET(
   request: NextRequest,
-  { params }: { params: { id: string } }
+  { params }: { params: Promise<{ id: string }> }
 ) {
   try {
+    const { id } = await params
     const { searchParams } = new URL(request.url)
     const docType = searchParams.get('docType')
     const isPublic = searchParams.get('public')
 
-    let whereClause: any = { projectId: params.id }
+    let whereClause: any = { projectId: id }
     
     if (docType) {
       whereClause.docType = docType
@@ -37,9 +38,10 @@ export async function GET(
 
 export async function POST(
   request: NextRequest,
-  { params }: { params: { id: string } }
+  { params }: { params: Promise<{ id: string }> }
 ) {
   try {
+    const { id } = await params
     const body = await request.json()
     const { docType, content, isPublic = false } = body
 
@@ -52,7 +54,7 @@ export async function POST(
 
     // 检查项目是否存在
     const project = await db.project.findUnique({
-      where: { id: params.id }
+      where: { id }
     })
 
     if (!project) {
@@ -67,7 +69,7 @@ export async function POST(
         docType,
         content,
         isPublic,
-        projectId: params.id
+        projectId: id
       }
     })
 

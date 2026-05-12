@@ -3,20 +3,12 @@ import { db } from '@/lib/db'
 
 export async function GET(
   request: NextRequest,
-  { params }: { params: { id: string } }
+  { params }: { params: Promise<{ id: string }> }
 ) {
   try {
+    const { id } = await params
     const comments = await db.comment.findMany({
-      where: { projectId: params.id },
-      include: {
-        author: {
-          select: {
-            id: true,
-            name: true,
-            avatar: true
-          }
-        }
-      },
+      where: { projectId: id },
       orderBy: { createdAt: 'desc' },
       take: 50
     })
@@ -33,9 +25,10 @@ export async function GET(
 
 export async function POST(
   request: NextRequest,
-  { params }: { params: { id: string } }
+  { params }: { params: Promise<{ id: string }> }
 ) {
   try {
+    const { id } = await params
     const body = await request.json()
     const { content, authorId } = body
 
@@ -46,9 +39,8 @@ export async function POST(
       )
     }
 
-    // 检查项目是否存在
     const project = await db.project.findUnique({
-      where: { id: params.id }
+      where: { id }
     })
 
     if (!project) {
@@ -58,7 +50,6 @@ export async function POST(
       )
     }
 
-    // 如果没有提供authorId，使用默认用户
     let finalAuthorId = authorId
     if (!finalAuthorId) {
       const defaultUser = await db.user.findFirst()
@@ -71,32 +62,11 @@ export async function POST(
       finalAuthorId = defaultUser.id
     }
 
-    // 验证用户是否存在
-    const user = await db.user.findUnique({
-      where: { id: finalAuthorId }
-    })
-
-    if (!user) {
-      return NextResponse.json(
-        { error: 'Invalid author ID' },
-        { status: 400 }
-      )
-    }
-
     const comment = await db.comment.create({
       data: {
         content,
-        projectId: params.id,
+        projectId: id,
         authorId: finalAuthorId
-      },
-      include: {
-        author: {
-          select: {
-            id: true,
-            name: true,
-            avatar: true
-          }
-        }
       }
     })
 

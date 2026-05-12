@@ -234,9 +234,10 @@ export class RewardDistributor {
   private updateUserBalance(userId: string, amount: number): void {
     try {
       if (typeof globalThis !== 'undefined') {
-        const balances = (globalThis as any).__userBalances || {}
-        balances[userId] = (balances[userId] || 0) + amount
-        (globalThis as any).__userBalances = balances
+        const balances: Record<string, number> = (globalThis as Record<string, unknown>).__userBalances as Record<string, number> || {}
+        const currentBalance = balances[userId] !== undefined ? balances[userId] : 0
+        balances[userId] = currentBalance + amount
+        ;(globalThis as Record<string, unknown>).__userBalances = balances
       }
     } catch {
       // 静默处理
@@ -273,13 +274,14 @@ export class RewardDistributor {
   ): void {
     try {
       if (typeof globalThis !== 'undefined') {
-        const metrics = (globalThis as any).__systemMetrics || {}
+        const metrics: Record<string, { totalRewards: number; lastReward: Date; performance: number }> = (globalThis as Record<string, unknown>).__systemMetrics as Record<string, { totalRewards: number; lastReward: Date; performance: number }> || {}
+        const existing = metrics[systemId]
         metrics[systemId] = {
-          totalRewards: (metrics[systemId]?.totalRewards || 0) + amount,
+          totalRewards: (existing?.totalRewards || 0) + amount,
           lastReward: new Date(),
-          performance: Math.min((metrics[systemId]?.performance || 0.5) + 0.01, 1.0)
+          performance: Math.min((existing?.performance || 0.5) + 0.01, 1.0)
         }
-        (globalThis as any).__systemMetrics = metrics
+        ;(globalThis as Record<string, unknown>).__systemMetrics = metrics
       }
     } catch {
       // 静默处理
@@ -325,13 +327,14 @@ export class RewardDistributor {
   ): void {
     try {
       if (typeof globalThis !== 'undefined') {
-        const health = (globalThis as any).__componentHealth || {}
+        const health: Record<string, { score: number; lastReward: Date; totalRewards: number }> = (globalThis as Record<string, unknown>).__componentHealth as Record<string, { score: number; lastReward: Date; totalRewards: number }> || {}
+        const existing = health[componentId]
         health[componentId] = {
-          score: Math.min((health[componentId]?.score || 0.5) + amount / 1000, 1.0),
+          score: Math.min((existing?.score || 0.5) + amount / 1000, 1.0),
           lastReward: new Date(),
-          totalRewards: (health[componentId]?.totalRewards || 0) + amount
+          totalRewards: (existing?.totalRewards || 0) + amount
         }
-        (globalThis as any).__componentHealth = health
+        ;(globalThis as Record<string, unknown>).__componentHealth = health
       }
     } catch {
       // 静默处理
@@ -360,11 +363,11 @@ export class RewardDistributor {
   private updateServiceLevel(serviceId: string, amount: number): void {
     try {
       if (typeof globalThis !== 'undefined') {
-        const levels = (globalThis as any).__serviceLevels || {}
+        const levels: Record<string, number> = (globalThis as Record<string, unknown>).__serviceLevels as Record<string, number> || {}
         const currentLevel = levels[serviceId] || 1
         const newLevel = Math.min(currentLevel + Math.floor(amount / 100), 10)
         levels[serviceId] = newLevel
-        (globalThis as any).__serviceLevels = levels
+        ;(globalThis as Record<string, unknown>).__serviceLevels = levels
       }
     } catch {
       // 静默处理

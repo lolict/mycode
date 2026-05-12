@@ -3,14 +3,7 @@ import { db } from '@/lib/db'
 
 export async function GET() {
   try {
-    // 获取第一个用户作为演示
-    const user = await db.user.findFirst({
-      include: {
-        communityAccounts: {
-          orderBy: { createdAt: 'desc' }
-        }
-      }
-    })
+    const user = await db.user.findFirst()
 
     if (!user) {
       return NextResponse.json(

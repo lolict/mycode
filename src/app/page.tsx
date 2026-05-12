@@ -6,7 +6,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/com
 import { Badge } from '@/components/ui/badge'
 import { Alert, AlertDescription } from '@/components/ui/alert'
 import { Progress } from '@/components/ui/progress'
-import { Heart, Users, Calendar, MapPin, AlertCircle, Loader2, PlusCircle, Target, TrendingUp, UserCheck } from 'lucide-react'
+import { Heart, Users, Calendar, MapPin, AlertCircle, Loader2, PlusCircle, Target, TrendingUp, UserCheck, Sparkles } from 'lucide-react'
 
 interface Project {
   id: string
@@ -110,6 +110,15 @@ export default function SimpleStableHome() {
             <div className="flex gap-2">
               <Button 
                 size="sm" 
+                variant="outline"
+                className="border-purple-300 text-purple-600 hover:bg-purple-50"
+                onClick={() => window.location.href = '/dexi'}
+              >
+                <Sparkles className="w-4 h-4 mr-2" />
+                德系模块
+              </Button>
+              <Button 
+                size="sm" 
                 className="bg-pink-500 hover:bg-pink-600 text-white"
                 onClick={() => window.location.href = '/create'}
               >
@@ -175,6 +184,15 @@ export default function SimpleStableHome() {
                 onClick={() => window.location.href = '/projects'}
               >
                 浏览项目
+              </Button>
+              <Button 
+                size="lg" 
+                variant="outline" 
+                className="w-full sm:w-auto border-yellow-400 text-yellow-200 hover:bg-yellow-400 hover:text-purple-900 px-8 transition-colors"
+                onClick={() => window.location.href = '/dexi'}
+              >
+                <Sparkles className="w-5 h-5 mr-2" />
+                德系54模块
               </Button>
             </div>
           </div>

@@ -23,16 +23,6 @@ export async function GET(request: NextRequest) {
     const [dreamRecords, total] = await Promise.all([
       db.namedLedger.findMany({
         where: whereClause,
-        include: {
-          user: {
-            select: {
-              id: true,
-              name: true,
-              userType: true,
-              avatar: true
-            }
-          }
-        },
         orderBy: [
           { createdAt: 'desc' },
           { status: 'asc' }
@@ -154,65 +144,8 @@ export async function POST(request: NextRequest) {
         projectId,
         status: 'pending',
         value: calculateDreamValue(dreamData)
-      },
-      include: {
-        user: {
-          select: {
-            id: true,
-            name: true,
-            userType: true,
-            avatar: true
-          }
-        }
       }
     })
-
-    // 所有用户记录梦想都获得共同体账户奖励
-    const balanceAmount = dreamRecord.value * 0.2 // 梦想记录获得20%庇佑
-    
-    await db.user.update({
-      where: { id: userId },
-      data: {
-        communityBalance: {
-          increment: balanceAmount
-        }
-      }
-    })
-
-    // 记录共同体账户变动
-    await db.communityAccount.create({
-      data: {
-        userId,
-        accountType: 'balance',
-        amount: balanceAmount,
-        reason: `梦境账本记录：${content.substring(0, 30)}...`,
-        transactionType: 'credit'
-      }
-    })
-
-    // 如果是健全人且有合作意愿，给予投资点数
-    if (user.userType === 'able-bodied' && dreamData.collaboration) {
-      const investmentPoints = dreamRecord.value * 0.1
-      
-      await db.user.update({
-        where: { id: userId },
-        data: {
-          investmentPoints: {
-            increment: investmentPoints
-          }
-        }
-      })
-
-      await db.communityAccount.create({
-        data: {
-          userId,
-          accountType: 'investment',
-          amount: investmentPoints,
-          reason: `支持梦想实现：${dreamData.dreamTitle || content.substring(0, 20)}...`,
-          transactionType: 'credit'
-        }
-      })
-    }
 
     return NextResponse.json(dreamRecord, { status: 201 })
   } catch (error) {

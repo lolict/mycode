@@ -22,16 +22,6 @@ export async function GET(request: NextRequest) {
     const [medicalRecords, total] = await Promise.all([
       db.namedLedger.findMany({
         where: whereClause,
-        include: {
-          user: {
-            select: {
-              id: true,
-              name: true,
-              userType: true,
-              avatar: true
-            }
-          }
-        },
         orderBy: [
           { createdAt: 'desc' },
           { status: 'asc' }
@@ -42,7 +32,6 @@ export async function GET(request: NextRequest) {
       db.namedLedger.count({ where: whereClause })
     ])
 
-    // 解析特殊数据
     const medicalRecordsWithDetails = medicalRecords.map(record => {
       let specialData = null
       let tags = []
@@ -95,7 +84,6 @@ export async function POST(request: NextRequest) {
       projectId
     } = body
 
-    // 验证必填字段
     if (!userId || !content) {
       return NextResponse.json(
         { error: 'Missing required fields', details: '用户ID和内容是必填的' },
@@ -103,7 +91,6 @@ export async function POST(request: NextRequest) {
       )
     }
 
-    // 验证用户是否存在
     const user = await db.user.findUnique({
       where: { id: userId }
     })
@@ -115,22 +102,21 @@ export async function POST(request: NextRequest) {
       )
     }
 
-    // 构建特殊数据
     let medicalData = {}
     if (specialData) {
       medicalData = {
-        diseaseType: specialData.diseaseType || '', // 疾病类型
-        cause: specialData.cause || '', // 病情起因
-        diagnosis: specialData.diagnosis || '', // 诊断结果
-        treatment: specialData.treatment || '', // 治疗方案
-        medication: specialData.medication || '', // 用药记录
-        hospital: specialData.hospital || '', // 就医医院
-        doctor: specialData.doctor || '', // 主治医生
-        startDate: specialData.startDate || '', // 发病时间
-        severity: specialData.severity || 'medium', // 严重程度：mild, medium, severe
-        isChronic: specialData.isChronic || false, // 是否慢性病
-        needsHelp: specialData.needsHelp || false, // 是否需要帮助
-        helpType: specialData.helpType || '', // 需要的帮助类型
+        diseaseType: specialData.diseaseType || '',
+        cause: specialData.cause || '',
+        diagnosis: specialData.diagnosis || '',
+        treatment: specialData.treatment || '',
+        medication: specialData.medication || '',
+        hospital: specialData.hospital || '',
+        doctor: specialData.doctor || '',
+        startDate: specialData.startDate || '',
+        severity: specialData.severity || 'medium',
+        isChronic: specialData.isChronic || false,
+        needsHelp: specialData.needsHelp || false,
+        helpType: specialData.helpType || '',
         ...specialData
       }
     }
@@ -146,43 +132,8 @@ export async function POST(request: NextRequest) {
         projectId,
         status: 'pending',
         value: calculateMedicalValue(medicalData)
-      },
-      include: {
-        user: {
-          select: {
-            id: true,
-            name: true,
-            userType: true,
-            avatar: true
-          }
-        }
       }
     })
-
-    // 如果是残疾人用户，更新共同体账户
-    if (user.userType === 'disabled') {
-      const balanceAmount = medicalRecord.value * 0.3 // 病历记录获得30%庇佑
-      
-      await db.user.update({
-        where: { id: userId },
-        data: {
-          communityBalance: {
-            increment: balanceAmount
-          }
-        }
-      })
-
-      // 记录共同体账户变动
-      await db.communityAccount.create({
-        data: {
-          userId,
-          accountType: 'balance',
-          amount: balanceAmount,
-          reason: `病历账本记录：${content.substring(0, 30)}...`,
-          transactionType: 'credit'
-        }
-      })
-    }
 
     return NextResponse.json(medicalRecord, { status: 201 })
   } catch (error) {
@@ -194,21 +145,14 @@ export async function POST(request: NextRequest) {
   }
 }
 
-// 计算病历记录的价值
 function calculateMedicalValue(medicalData: any): number {
   let baseValue = 10
   
-  // 根据严重程度调整
   if (medicalData.severity === 'severe') baseValue += 20
   else if (medicalData.severity === 'medium') baseValue += 10
   
-  // 慢性病额外价值
   if (medicalData.isChronic) baseValue += 15
-  
-  // 需要帮助额外价值
   if (medicalData.needsHelp) baseValue += 10
-  
-  // 详细记录额外价值
   if (medicalData.diagnosis && medicalData.treatment) baseValue += 10
   if (medicalData.medication) baseValue += 5
   
