@@ -17,7 +17,7 @@ import {
   Calculator, Archive, Headphones,
   Siren, AlertTriangle, LifeBuoy, ShieldAlert,
   Search, ArrowRight, Grid3X3, BarChart3, Zap, Star, ChevronRight,
-  ArrowLeft
+  ArrowLeft, Plug, Cable, Brain, Activity
 } from 'lucide-react'
 import TabBar from '@/components/tab-bar'
 
@@ -326,6 +326,60 @@ export default function DexiHub() {
               )}
             </>
           )}
+        </div>
+      </section>
+
+      {/* 德系→插板映射 */}
+      <section className="py-8 bg-gradient-to-r from-emerald-50 via-white to-teal-50 border-t">
+        <div className="container mx-auto px-4">
+          <div className="text-center mb-8">
+            <div className="flex items-center justify-center gap-2 mb-3">
+              <Plug className="h-6 w-6 text-emerald-600" />
+              <h3 className="text-2xl font-bold text-gray-800">德系→插板型号映射</h3>
+              <Cable className="h-6 w-6 text-teal-600" />
+            </div>
+            <p className="text-gray-600 max-w-2xl mx-auto">
+              每个德系模块都是一个插头 — 10大分类对应7种插头型号，通过插板架构实现模块间的信号传递与数据流转
+            </p>
+          </div>
+          <div className="grid grid-cols-2 md:grid-cols-5 gap-3 max-w-5xl mx-auto">
+            {[
+              { cat: '基础设施', plug: 'config', socket: 'config_read', icon: '⚙️', modules: 6, weight: 0.7, color: '#eab308' },
+              { cat: '出行物流', plug: 'action', socket: 'action_handler', icon: '🚗', modules: 4, weight: 0.8, color: '#f97316' },
+              { cat: '经济金融', plug: 'data', socket: 'data_input', icon: '💰', modules: 5, weight: 0.6, color: '#3b82f6' },
+              { cat: '医疗健康', plug: 'action', socket: 'action_handler', icon: '🏥', modules: 5, weight: 0.9, color: '#f97316' },
+              { cat: '文化教育', plug: 'vocab', socket: 'vocab_display', icon: '📚', modules: 8, weight: 0.5, color: '#eab308' },
+              { cat: '治理监督', plug: 'signal', socket: 'signal_channel', icon: '⚖️', modules: 7, weight: 0.7, color: '#10b981' },
+              { cat: '应急安全', plug: 'signal', socket: 'signal_channel', icon: '🆘', modules: 4, weight: 1.0, color: '#10b981' },
+              { cat: '社交传播', plug: 'signal', socket: 'signal_channel', icon: '📢', modules: 5, weight: 0.6, color: '#10b981' },
+              { cat: '创业赋能', plug: 'data', socket: 'data_input', icon: '🚀', modules: 5, weight: 0.5, color: '#3b82f6' },
+              { cat: '记录存档', plug: 'data', socket: 'data_input', icon: '📁', modules: 5, weight: 0.4, color: '#3b82f6' },
+            ].map(item => (
+              <Card key={item.cat} className="hover:shadow-md transition-shadow">
+                <CardContent className="p-3 text-center">
+                  <span className="text-xl">{item.icon}</span>
+                  <p className="text-xs font-bold text-gray-800 mt-1">{item.cat}</p>
+                  <div className="flex items-center justify-center gap-1 mt-1">
+                    <Badge variant="outline" className="text-[10px] py-0" style={{ borderColor: item.color, color: item.color }}>
+                      {item.plug}
+                    </Badge>
+                    <ArrowRight className="h-2.5 w-2.5 text-gray-300" />
+                    <Badge variant="secondary" className="text-[10px] py-0">{item.socket}</Badge>
+                  </div>
+                  <p className="text-[10px] text-gray-400 mt-1">{item.modules}模块 · 权重{item.weight}</p>
+                </CardContent>
+              </Card>
+            ))}
+          </div>
+          <div className="text-center mt-6">
+            <Link href="/neural">
+              <Button variant="outline" className="border-purple-300 text-purple-600 hover:bg-purple-50">
+                <Brain className="h-4 w-4 mr-2" />
+                查看神经网络信号流
+                <ChevronRight className="h-4 w-4 ml-1" />
+              </Button>
+            </Link>
+          </div>
         </div>
       </section>
 
