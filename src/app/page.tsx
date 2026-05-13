@@ -8,6 +8,7 @@ import { Alert, AlertDescription } from '@/components/ui/alert'
 import { Progress } from '@/components/ui/progress'
 import { Heart, Users, Calendar, MapPin, AlertCircle, Loader2, PlusCircle, Target, TrendingUp, UserCheck, Brain } from 'lucide-react'
 import { useNeuralPlug, useDigest } from '@/core/v2/hooks'
+import TabBar from '@/components/tab-bar'
 
 interface Project {
   id: string
@@ -115,7 +116,7 @@ export default function SimpleStableHome() {
   }
 
   return (
-    <div className="min-h-screen bg-gradient-to-b from-pink-50 to-white">
+    <div className="min-h-screen bg-gradient-to-b from-pink-50 to-white pb-20">
       {/* Header */}
       <div className="bg-white border-b">
         <div className="container mx-auto px-4 py-4">
@@ -423,7 +424,7 @@ export default function SimpleStableHome() {
           </div>
 
           {/* 更多入口 */}
-          <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mt-8">
+          <div className="grid grid-cols-2 md:grid-cols-5 gap-4 mt-8">
             <Card className="hover:shadow-md transition-shadow cursor-pointer" onClick={() => window.location.href = '/living'}>
               <CardContent className="p-4 text-center">
                 <span className="text-2xl">🧬</span>
@@ -446,6 +447,13 @@ export default function SimpleStableHome() {
               <CardContent className="p-4 text-center">
                 <span className="text-2xl">📱</span>
                 <p className="text-sm font-medium mt-2">应用市场</p>
+              </CardContent>
+            </Card>
+            <Card className="hover:shadow-md transition-shadow cursor-pointer border-purple-200" onClick={() => window.location.href = '/neural'}>
+              <CardContent className="p-4 text-center">
+                <span className="text-2xl">🧠</span>
+                <p className="text-sm font-medium mt-2">神经网络监控</p>
+                <p className="text-xs text-gray-400">实时信号传递 · 节点激活可视化 · 拓扑图</p>
               </CardContent>
             </Card>
           </div>
@@ -490,6 +498,7 @@ export default function SimpleStableHome() {
           </div>
         </div>
       </div>
+      <TabBar />
     </div>
   )
 }

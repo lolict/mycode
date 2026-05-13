@@ -7,6 +7,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/com
 import { Badge } from '@/components/ui/badge'
 import { Progress } from '@/components/ui/progress'
 import { Brain, Heart, Activity, AlertTriangle, TrendingUp, Users, ArrowLeft, RefreshCw, Zap, Shield, Sparkles } from 'lucide-react'
+import TabBar from '@/components/tab-bar'
 
 interface LivingStatus {
   timestamp: number
@@ -104,7 +105,7 @@ export default function LivingSystemPage() {
   }
 
   return (
-    <div className="min-h-screen bg-gray-50">
+    <div className="min-h-screen bg-gray-50 pb-20">
       {/* Header */}
       <div className="bg-white border-b">
         <div className="container mx-auto px-4 py-4">
@@ -347,6 +348,7 @@ export default function LivingSystemPage() {
           </Card>
         </div>
       )}
+      <TabBar />
     </div>
   )
 }

@@ -19,6 +19,7 @@ import {
   Search, ArrowRight, Grid3X3, BarChart3, Zap, Star, ChevronRight,
   ArrowLeft
 } from 'lucide-react'
+import TabBar from '@/components/tab-bar'
 
 // 图标映射
 const iconMap: Record<string, any> = {
@@ -143,7 +144,7 @@ export default function DexiHub() {
   }
 
   return (
-    <div className="min-h-screen bg-gradient-to-b from-indigo-50 via-white to-purple-50">
+    <div className="min-h-screen bg-gradient-to-b from-indigo-50 via-white to-purple-50 pb-20">
       {/* Header */}
       <section className="bg-gradient-to-r from-indigo-600 via-purple-600 to-pink-600 text-white py-16 relative overflow-hidden">
         <div className="absolute inset-0 opacity-10">
@@ -351,6 +352,7 @@ export default function DexiHub() {
           </div>
         </div>
       </section>
+      <TabBar />
     </div>
   )
 }

@@ -12,6 +12,7 @@ import {
   Coins, Crown, Flame, Calendar, CheckCircle, BookOpen,
   Landmark, Users, Siren, Eye
 } from 'lucide-react'
+import TabBar from '@/components/tab-bar'
 
 // 注：此页面使用的图标都在上方导入中，已移除未使用的ICON_MAP
 
@@ -119,7 +120,7 @@ export default function MoralEquityPage() {
   const eq = equity?.equity
 
   return (
-    <div className="min-h-screen bg-gradient-to-b from-amber-50 via-white to-orange-50">
+    <div className="min-h-screen bg-gradient-to-b from-amber-50 via-white to-orange-50 pb-20">
       {/* Header */}
       <section className="bg-gradient-to-r from-amber-600 via-orange-600 to-red-600 text-white py-12">
         <div className="container mx-auto px-4">
@@ -304,6 +305,7 @@ export default function MoralEquityPage() {
           </CardContent>
         </Card>
       </div>
+      <TabBar />
     </div>
   )
 }
